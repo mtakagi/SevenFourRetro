@@ -426,10 +426,11 @@ static QuickLiteDatabase* database_ = nil;
     // [thread_ setDelegate: nil];
 }
 
-- (void) update
+// Create the underlying Ch2Thread on demand. It used to be created only by
+// -update, so posting to a thread that had not been updated yet messaged nil
+// and silently reported success.
+- (void) prepareCh2Thread
 {
-	DEBUG_LOG(@"SFThread %p - update", self);
-	
 	if (cacheDeleted_) {
 		[thread_ release];
 		thread_ = nil;
@@ -453,6 +454,13 @@ static QuickLiteDatabase* database_ = nil;
 		[thread_ setDelegate: self];
 		DEBUG_LOG(@"SFThread %p - [thread_ count] = %d", self, [thread_ count]);
     }
+}
+
+- (void) update
+{
+	DEBUG_LOG(@"SFThread %p - update", self);
+
+	[self prepareCh2Thread];
 
 #if  1
 	if (! offline_) {
@@ -518,7 +526,9 @@ static QuickLiteDatabase* database_ = nil;
 								body: (NSString*) body
 {
 	// NSLog(@"name = %@, mail = %@, body = %@", name, mail, body);
-	
+
+	[self prepareCh2Thread];
+
     Ch2ThreadPostResult result;
     result = [thread_ postWithName: name
                               mail: mail
