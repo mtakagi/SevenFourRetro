@@ -21,7 +21,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Show Xcode version
         run: xcodebuild -version
@@ -54,9 +54,11 @@ jobs:
       - name: Archive app
         run: ditto -c -k --keepParent build/Build/Products/Release/SevenFour.app SevenFour.zip
 
+      # The zip is uploaded as is (archive: false), so the artifact downloads
+      # as SevenFour.zip instead of a zip inside a zip.
       - name: Upload app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: SevenFour-${{ github.sha }}
           path: SevenFour.zip
+          archive: false
           retention-days: 7
