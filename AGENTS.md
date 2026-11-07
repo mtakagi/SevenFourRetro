@@ -61,6 +61,11 @@ lipo -info build/Build/Products/Release/SevenFour.app/Contents/MacOS/SevenFour
 - 現行 SDK で削除された API（`NSMenuView`、`-[NSFont defaultLineHeightForFont]` など）は代替 API に置き換えてください。非推奨（deprecated）なだけの API はそのまま使えます。
 - `.nib` は旧形式のバイナリなので、テキストとして編集できません。UI を変えるときは、コードで変更するか `.xib` への移行を検討してください。
 - ソースのエンコーディングは UTF-8 です。
+- **通信は HTTPS 前提です。** 現行 SDK では App Transport Security (ATS) が有効なため、平文 HTTP の通信はブロックされます。ATS の例外は設定していません。
+  - 板一覧のデフォルトは `https://menu.5ch.io/bbsmenu.html` です（`SFAppController.m`）。
+  - 板・スレッド・DAT の URL を組み立てるときは `http://` を直接書かず、プレフィックスヘッダの `SFSchemeOfURL()`（http と明示されていなければ https）と `SFIsWebURL()` を使ってください。
+  - 内部 URL `sevenfour://host/...` はスキームを持たないので、板の URL へ戻すときは https として扱います（`SFURLProtocol.m`）。
+  - HTTP でしか提供されていない画像（スレッド内のリンク）や板は、ATS により読み込めません。
 
 ## 動作確認
 

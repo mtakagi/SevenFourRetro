@@ -4,4 +4,19 @@
 
 #ifdef __OBJC__
     #import <Cocoa/Cocoa.h>
+
+    // YES for http/https URLs.
+    static inline BOOL SFIsWebURL(NSURL* url)
+    {
+        NSString* scheme = [[url scheme] lowercaseString];
+        return [scheme isEqualToString: @"https"] || [scheme isEqualToString: @"http"];
+    }
+
+    // Scheme to use when building URLs on the same server as `url`.
+    // App Transport Security blocks plain HTTP, so anything that is not
+    // explicitly http falls back to https.
+    static inline NSString* SFSchemeOfURL(NSURL* url)
+    {
+        return [[[url scheme] lowercaseString] isEqualToString: @"http"] ? @"http" : @"https";
+    }
 #endif

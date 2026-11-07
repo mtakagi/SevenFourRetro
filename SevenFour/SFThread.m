@@ -372,8 +372,8 @@ static QuickLiteDatabase* database_ = nil;
 
 - (NSURL*) URLOfHTML
 {
-    NSString* s = [NSString stringWithFormat: @"http://%@/test/read.cgi%@/%d/",
-        [board_ host], [board_ path], number_];
+    NSString* s = [NSString stringWithFormat: @"%@://%@/test/read.cgi%@/%d/",
+        SFSchemeOfURL(board_), [board_ host], [board_ path], number_];
     
     return [NSURL URLWithString: s];
 }

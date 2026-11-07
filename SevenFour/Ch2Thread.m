@@ -226,8 +226,8 @@ static NSString* alertMessageFromHTML(NSString* html)
 - (NSURL*) URLOfHTML
 {
     NSString* s = [NSString stringWithFormat:
-                      @"http://%@/test/read.cgi%@/%d/",
-                      [board_ host], [board_ path], number_]; 
+                      @"%@://%@/test/read.cgi%@/%d/",
+                      SFSchemeOfURL(board_), [board_ host], [board_ path], number_]; 
     
     return [NSURL URLWithString: s];
 }
@@ -236,8 +236,8 @@ static NSString* alertMessageFromHTML(NSString* html)
                       number: (int) number
 {
     NSString* s = [NSString stringWithFormat:
-                                      @"http://%@%@/dat/%d.dat",
-        [board host], [board path], number]; 
+                                      @"%@://%@%@/dat/%d.dat",
+        SFSchemeOfURL(board), [board host], [board path], number]; 
     
     return [NSURL URLWithString: s];
 }

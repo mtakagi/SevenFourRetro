@@ -106,7 +106,7 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
 			 forKey: @"ImageWindowMaxHeight"];
 	
 	// Network
-	[dict setObject: @"http://menu.2ch.net/bbsmenu.html"
+	[dict setObject: @"https://menu.5ch.io/bbsmenu.html"
 			 forKey: @"URLOfBoardTree"];
 	
 	[defaults registerDefaults: dict];

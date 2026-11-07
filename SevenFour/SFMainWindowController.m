@@ -182,7 +182,7 @@ static SFMainWindowController* activeController_;
 - (void) mouseOverOnURL: (NSURL*) url
 				  label: (NSString*) label
 {
-	if ([[url scheme] isEqualTo: @"http"]) {
+	if (SFIsWebURL(url)) {
 		
 		NSRange range;
 		range = [[url absoluteString] rangeOfRegularExpressionString: @"\\.(jpe?g|png|gif)$"
@@ -863,7 +863,7 @@ decisionListener: (id<WebPolicyDecisionListener>) listener
     } else if ([[url scheme] isEqualTo: @"applewebdata"] || [[url scheme] isEqualTo: @"about"]) {
 		[listener use];
 		return;
-    } else if ([[url scheme] isEqualTo: @"http"]) {
+    } else if (SFIsWebURL(url)) {
 		SFThread* th = [SFDocument threadWithURL: url];
 		if (th) {
 			[self openThread: url];
