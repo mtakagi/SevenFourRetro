@@ -94,29 +94,15 @@
 
 - (void) startLoadingThread: (NSURL*) url
 {
-    SFThread* th;
-    NSString* range;
-    
-	[SFURLProtocol parseURL: url
-					 thread: &th range: &range];
-
-    if (! formatter_) {
-        formatter_ = [[SFThreadHTMLFormatter alloc] init];    
-    }
-    [formatter_ setRange: range];
-
-	if (! th) {
-		NSLog(@"SFURLProtocol: %@ is not a thread ( t = %@ ).", url, th);
-		return;
+	// Remember where the client expects its callbacks.
+	clientThread_ = [[NSThread currentThread] retain];
+	NSMutableArray* modes = [NSMutableArray arrayWithObject: NSDefaultRunLoopMode];
+	NSString* mode = [[NSRunLoop currentRunLoop] currentMode];
+	if (mode && ! [mode isEqualToString: NSDefaultRunLoopMode]) {
+		[modes addObject: mode];
 	}
-	
-	// Add Observer
-	NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
-	[center addObserver: self
-			   selector: @selector(threadFinishParsing:)
-				   name: SFThreadDidFinishUpdatingNotification
-				 object: th];
-	
+	clientModes_ = [modes copy];
+
 	// Response
 	NSURLResponse* resp;
 	resp = [[NSURLResponse alloc] initWithURL: url
@@ -127,23 +113,76 @@
 			didReceiveResponse: resp
 			cacheStoragePolicy: NSURLCacheStorageAllowedInMemoryOnly];
 	[resp release];
+
+	[self performSelectorOnMainThread: @selector(updateThreadWithURL:)
+						   withObject: url
+						waitUntilDone: NO];
+}
+
+// Main thread.
+- (void) updateThreadWithURL: (NSURL*) url
+{
+	if (stopped_) {
+		return;
+	}
+
+    SFThread* th;
+    NSString* range;
+    
+	[SFURLProtocol parseURL: url
+					 thread: &th range: &range];
+
+    if (! formatter_) {
+        formatter_ = [[SFThreadHTMLFormatter alloc] init];    
+    }
+    [formatter_ setRange: range];
+	[range release];
+
+	if (! th) {
+		NSLog(@"SFURLProtocol: %@ is not a thread.", url);
+		[self performSelector: @selector(finishWithData:)
+					 onThread: clientThread_
+				   withObject: [NSData data]
+				waitUntilDone: NO
+						modes: clientModes_];
+		return;
+	}
 	
+	[[NSNotificationCenter defaultCenter] addObserver: self
+											 selector: @selector(threadFinishParsing:)
+												 name: SFThreadDidFinishUpdatingNotification
+											   object: th];
 	[th update];
 }
 
+// Main thread.
 - (void) threadFinishParsing: (NSNotification*) n
 {    
-    SFThread* th = [n object];
+	[[NSNotificationCenter defaultCenter] removeObserver: self];
 
-    NSString* html = [formatter_ formatThread: th];
-    
-    [html writeToFile: @"/tmp/a.html"
-           atomically: YES];
-    
-    [[self client] URLProtocol: self
-				   didLoadData: [html dataUsingEncoding: NSUnicodeStringEncoding]];
+    NSString* html = [formatter_ formatThread: [n object]];
+    NSData* data = [html dataUsingEncoding: NSUnicodeStringEncoding];
+
+	[self performSelector: @selector(finishWithData:)
+				 onThread: clientThread_
+			   withObject: (data ? data : [NSData data])
+			waitUntilDone: NO
+					modes: clientModes_];
+}
+
+// Client thread.
+- (void) finishWithData: (NSData*) data
+{
+	if (stopped_) {
+		return;
+	}
+    [[self client] URLProtocol: self didLoadData: data];
     [[self client] URLProtocolDidFinishLoading: self];
-	
+}
+
+// Main thread.
+- (void) stopObserving
+{
 	[[NSNotificationCenter defaultCenter] removeObserver: self];
 }
 
@@ -154,6 +193,8 @@
 	// DEBUG_LOG(@"SFURLProtocol %p - dealloc", self);
 
     [formatter_ release];
+	[clientThread_ release];
+	[clientModes_ release];
 	
 	[[NSNotificationCenter defaultCenter] removeObserver: self];
 	[super dealloc];
@@ -188,7 +229,13 @@
 
 - (void) stopLoading
 {
-	;
+	// The pending main-thread calls keep self alive; they see stopped_ and do
+	// nothing. The observer is removed on the main thread, where notifications
+	// are delivered, so it cannot fire on a deallocated protocol.
+	stopped_ = YES;
+	[self performSelectorOnMainThread: @selector(stopObserving)
+						   withObject: nil
+						waitUntilDone: NO];
 }
 
 @end
