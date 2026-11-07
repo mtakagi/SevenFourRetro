@@ -43,7 +43,7 @@
 	BOOL	topBorder=[self topViewNeedsBorder];
 	BOOL	bottomBorder=[self bottomViewNeedsBorder];
 	BOOL	sideIsRight=[self sideIsRight];
-	if(sideView){
+	if([self isSideViewVisible]){
 		BOOL firstBorder, secondBorder;
 		if(sideIsRight){
 			firstBorder=YES;//(topBorder || bottomBorder);
@@ -215,7 +215,9 @@
 		[_layoutInfo setObject:[NSNumber numberWithFloat:topRatio] forKey:@"topViewRatio"];
 	}else if(_trackingMode==kMainSpliterTrackingVertical){
 		float newSideWidth=[topView frame].size.width;
-		float maxSideWidth=[self frame].size.width-[sideView frame].size.width-kHTTPVTopViewSeparatorThickness;
+		// A hidden side view keeps its frame, so only subtract it while visible.
+		float sideWidth=[self isSideViewVisible] ? [sideView frame].size.width : 0;
+		float maxSideWidth=[self frame].size.width-sideWidth-kHTTPVTopViewSeparatorThickness;
 
 		newSideWidth+=dx;
 		if(newSideWidth<0){
@@ -556,20 +558,20 @@
 
 }
 
+- (BOOL) isSideViewVisible
+{
+	return sideView != nil && ! [sideView isHidden];
+}
+
+// Hides or shows the side view. The side view keeps its width while hidden,
+// so it comes back at the same size.
 - (void) showSideView: (BOOL) flag
 {
-    if (flag) {
-        [_layoutInfo setObject: [NSNumber numberWithFloat: 0] 
-                        forKey: @"sideViewWidth"];
-        [_layoutInfo setObject: [NSNumber numberWithFloat: 0] 
-                        forKey: @"sideViewRatio"];
-    } else {
-        [_layoutInfo setObject: [NSNumber numberWithFloat: [self frame].size.height] 
-                        forKey: @"sideViewWidth"];
-        [_layoutInfo setObject: [NSNumber numberWithFloat: 1.0] 
-                        forKey: @"sideViewRatio"];
-    }
-    
+	if (! sideView || [self isSideViewVisible] == flag) {
+		return;
+	}
+	[sideView setHidden: ! flag];
+
     [self _adjustLayout];
     [self setNeedsDisplay: YES];
 }
@@ -609,8 +611,7 @@
 
 - (IBAction) toggleSideView: (id) sender
 {
-    BOOL flag = [[_layoutInfo objectForKey: @"sideViewRatio"] floatValue] == 0.0;
-    [self showSideView: !flag];
+    [self showSideView: ! [self isSideViewVisible]];
 }
 
 - (IBAction) toggleBottomView: (id) sender
@@ -753,7 +754,7 @@
 		sideIsRight=[[_layoutInfo objectForKey:@"sideIsRight"]boolValue];
 		topViewStretch=[[_layoutInfo objectForKey:@"topViewStretch"]floatValue];
 	}
-	if(sideView){
+	if([self isSideViewVisible]){
 		float thickness;
         
         if ([[_layoutInfo objectForKey:@"sideViewAlternativeStyle"] boolValue]) {
@@ -883,7 +884,7 @@
 			_mainSpliterRect.size.width=mainFrame.size.width;
 			_mainSpliterRect.origin.x=mainFrame.origin.x;
 			_mainSpliterRect.origin.y=bottomFrame.size.height;
-			if(sideView){
+			if([self isSideViewVisible]){
 				_mainSpliterRect.size.width+=1;
 				if(!sideIsRight){
 					_mainSpliterRect.origin.x-=1;
@@ -894,7 +895,10 @@
 		_mainSpliterRect=NSZeroRect;
 	}
 
-	[sideView setFrame:sideFrame];
+	// Keep the hidden side view's frame (and so its outline columns) intact.
+	if([self isSideViewVisible]){
+		[sideView setFrame:sideFrame];
+	}
 	[topView setFrame:mainFrame];
 	[bottomView setFrame:bottomFrame];
 }
