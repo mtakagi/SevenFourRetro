@@ -31,8 +31,6 @@ targets:
           # Copied as a folder reference below
           - "Skin"
           - "Skin/**"
-          # GIMP source image, not a runtime resource
-          - "new-top.xcf"
           # Processed via INFOPLIST_FILE
           - "Info.plist"
       # Thread HTML skin, copied as a folder to Contents/Resources/Skin
