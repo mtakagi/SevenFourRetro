@@ -215,7 +215,9 @@
 		[_layoutInfo setObject:[NSNumber numberWithFloat:topRatio] forKey:@"topViewRatio"];
 	}else if(_trackingMode==kMainSpliterTrackingVertical){
 		float newSideWidth=[topView frame].size.width;
-		float maxSideWidth=[self frame].size.width-[sideView frame].size.width-kHTTPVTopViewSeparatorThickness;
+		// A hidden side view keeps its frame, so only subtract it while visible.
+		float sideWidth=[self isSideViewVisible] ? [sideView frame].size.width : 0;
+		float maxSideWidth=[self frame].size.width-sideWidth-kHTTPVTopViewSeparatorThickness;
 
 		newSideWidth+=dx;
 		if(newSideWidth<0){
