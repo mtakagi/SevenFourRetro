@@ -1,0 +1,49 @@
+{
+    IBClasses = (
+        {
+            ACTIONS = {
+                copyURLOfBoard = id; 
+                copyURLOfThread = id; 
+                newTab = id; 
+                openURLOfBoard = id; 
+                openURLOfThread = id; 
+                performCustomFindPanelAction = id; 
+                showFontPanel = id; 
+                toggleOffline = id; 
+                updateBoardTree = id; 
+                updateThread = id; 
+            }; 
+            CLASS = FirstResponder; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSObject; 
+        }, 
+        {CLASS = FontButton; LANGUAGE = ObjC; SUPERCLASS = NSButton; }, 
+        {
+            ACTIONS = {reloadSkin = id; }; 
+            CLASS = SFAppController; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSObject; 
+        }, 
+        {
+            ACTIONS = {
+                closeTab = id; 
+                closeWindow = id; 
+                newTab = id; 
+                toggleBoardTree = id; 
+                updateBoard = id; 
+            }; 
+            CLASS = SFMainWindowController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {
+                drawer = NSDrawer; 
+                splitView = NSSplitView; 
+                tabbedWebView = TabbedWebView; 
+                threadListView = NSTableView; 
+                threadsController = NSArrayController; 
+                toolbarSearch = NSView; 
+            }; 
+            SUPERCLASS = NSWindowController; 
+        }
+    ); 
+    IBVersion = 1; 
+}

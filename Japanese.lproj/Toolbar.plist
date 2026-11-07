@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>progress</key>
+<dict>
+    <key>label</key>
+    <string>進行状況</string>
+</dict>
+
+<key>toggleBoardTree</key>
+<dict>
+    <key>label</key>
+    <string>板一覧</string>
+</dict>
+
+<key>updateBoard</key>
+<dict>
+    <key>label</key>
+    <string>板更新</string>
+</dict>
+
+<key>postToThread</key>
+<dict>
+    <key>label</key>
+    <string>書き込む...</string>
+</dict>
+
+<key>updateThread</key>
+<dict>
+    <key>label</key>
+    <string>スレ更新</string>
+</dict>
+
+<key>deleteThreadCache</key>
+<dict>
+    <key>label</key>
+    <string>ログを削除</string>
+</dict>
+
+<key>newTab</key>
+<dict>
+    <key>label</key>
+    <string>新規タブ</string>
+</dict>
+
+<key>closeTab</key>
+<dict>
+    <key>label</key>
+    <string>タブを閉じる</string>
+</dict>
+
+<key>boardSearch</key>
+<dict>
+    <key>label</key>
+    <string>板検索</string>
+</dict>
+
+<key>search</key>
+<dict>
+    <key>label</key>
+    <string>スレッド検索</string>
+</dict>
+
+<key>toggleMainPane</key>
+<dict>
+    <key>label</key>
+    <string>表示切り替え</string>
+</dict>
+
+</dict>
+</plist>

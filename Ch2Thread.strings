@@ -1,0 +1,4 @@
+POST_SUCCESS = "書きこみました";
+POST_ERROR   = "ＥＲＲＯＲ";
+POST_WAIT    = "お茶でも";
+POST_COOKIE  = "書き込み確認";

@@ -1,0 +1,20 @@
+{
+    IBClasses = (
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            ACTIONS = {openURL = id; }; 
+            CLASS = SFImageWindowController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {
+                imageView = NSButton; 
+                indicator = NSProgressIndicator; 
+                loadingBox = NSBox; 
+                messageField = NSTextField; 
+            }; 
+            SUPERCLASS = NSWindowController; 
+        }, 
+        {CLASS = TemporaryPanel; LANGUAGE = ObjC; SUPERCLASS = NSPanel; }, 
+        {CLASS = TemporaryWindow; LANGUAGE = ObjC; SUPERCLASS = NSWindow; }
+    ); 
+    IBVersion = 1; 
+}

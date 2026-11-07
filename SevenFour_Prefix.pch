@@ -1,0 +1,7 @@
+//
+// Prefix header for all source files of the 'SevenFour' target in the 'SevenFour' project
+//
+
+#ifdef __OBJC__
+    #import <Cocoa/Cocoa.h>
+#endif

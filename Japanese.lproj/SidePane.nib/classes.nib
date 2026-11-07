@@ -1,0 +1,26 @@
+{
+    IBClasses = (
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {CLASS = NSObject; LANGUAGE = ObjC; }, 
+        {
+            CLASS = SFMainWindowController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {drawer = NSDrawer; }; 
+            SUPERCLASS = NSWindowController; 
+        }, 
+        {
+            ACTIONS = {clicked = id; search = id; }; 
+            CLASS = SFSidePaneController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {
+                baseView = NSView; 
+                "delegate_" = id; 
+                outlineView = NSOutlineView; 
+                scrollView = NSScrollView; 
+                searchField = NSSearchField; 
+            }; 
+            SUPERCLASS = NSObject; 
+        }
+    ); 
+    IBVersion = 1; 
+}
