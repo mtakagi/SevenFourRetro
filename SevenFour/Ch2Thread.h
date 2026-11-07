@@ -43,6 +43,7 @@ extern NSString* Ch2ThreadConnectionDidFailNotification;
     // confirms. Posting the same name, mail and body again submits this form
     // as a browser would.
     NSURL* confirmAction_;
+    NSURL* confirmPage_;
     NSArray* confirmFields_;
     NSString* confirmedPost_;
 }

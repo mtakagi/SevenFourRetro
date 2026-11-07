@@ -64,9 +64,45 @@ static NSMutableDictionary* sharedFormData_ = NULL;
     return [result autorelease];
 }
 
+// Shift_JIS bytes of s. Like a browser submitting a Shift_JIS form, characters
+// Shift_JIS can't represent (e.g. emoji) are sent as numeric character
+// references instead of making the whole value empty.
+static NSData* shiftJISDataWithReferences(NSString* s)
+{
+    NSData* data = [s dataUsingEncoding: NSShiftJISStringEncoding];
+    if (data) {
+        return data;
+    }
+
+    NSMutableData* result = [NSMutableData data];
+    NSUInteger i = 0;
+    while (i < [s length]) {
+        NSRange r = [s rangeOfComposedCharacterSequenceAtIndex: i];
+        NSString* c = [s substringWithRange: r];
+        NSData* d = [c dataUsingEncoding: NSShiftJISStringEncoding];
+        if (d) {
+            [result appendData: d];
+        } else {
+            NSUInteger j = 0;
+            while (j < [c length]) {
+                UTF32Char code = [c characterAtIndex: j];
+                if (CFStringIsSurrogateHighCharacter(code) && j + 1 < [c length]) {
+                    code = CFStringGetLongCharacterForSurrogatePair(code, [c characterAtIndex: j + 1]);
+                    j++;
+                }
+                j++;
+                [result appendData: [[NSString stringWithFormat: @"&#%u;", (unsigned) code]
+                                       dataUsingEncoding: NSASCIIStringEncoding]];
+            }
+        }
+        i = NSMaxRange(r);
+    }
+    return result;
+}
+
 - (NSString*) URLencode
 {
-    NSData* data = [self dataUsingEncoding: NSShiftJISStringEncoding];
+    NSData* data = shiftJISDataWithReferences(self);
     NSMutableString* result = [[NSMutableString alloc] init];
     
     int i;
@@ -99,18 +135,57 @@ static NSMutableDictionary* sharedFormData_ = NULL;
 }
 @end
 
+// Decodes HTML character references: decimal (&#39;), hexadecimal (&#x27;)
+// and the named ones a bbs.cgi page uses. Unknown names are left as they are.
 static NSString* unescapeHTML(NSString* s)
 {
-    NSMutableString* result = [NSMutableString stringWithString: s];
-    NSArray* entities = [NSArray arrayWithObjects:
-        @"&lt;", @"<", @"&gt;", @">", @"&quot;", @"\"", @"&#39;", @"'", @"&amp;", @"&", nil];
-    int i;
-    for (i = 0; i < [entities count]; i += 2) {
-        [result replaceOccurrencesOfString: [entities objectAtIndex: i]
-                                withString: [entities objectAtIndex: i + 1]
-                                   options: 0
-                                     range: NSMakeRange(0, [result length])];
+    if ([s rangeOfString: @"&"].location == NSNotFound) {
+        return s;
     }
+
+    static NSRegularExpression* pattern = nil;
+    static NSDictionary* named = nil;
+    if (! pattern) {
+        pattern = [[NSRegularExpression alloc] initWithPattern: @"&(#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);"
+                                                       options: 0
+                                                         error: NULL];
+        named = [[NSDictionary alloc] initWithObjectsAndKeys:
+            @"&", @"amp", @"<", @"lt", @">", @"gt", @"\"", @"quot", @"'", @"apos",
+            @" ", @"nbsp", @"©", @"copy", @"®", @"reg", @"…", @"hellip", nil];
+    }
+
+    NSMutableString* result = [NSMutableString string];
+    NSUInteger last = 0;
+    NSArray* matches = [pattern matchesInString: s options: 0 range: NSMakeRange(0, [s length])];
+    NSEnumerator* enumerator = [matches objectEnumerator];
+    NSTextCheckingResult* match;
+    while ((match = [enumerator nextObject]) != nil) {
+        NSString* ref = [s substringWithRange: [match rangeAtIndex: 1]];
+        NSString* replacement = nil;
+        if ([ref hasPrefix: @"#"]) {
+            unsigned long long code = 0;
+            if ([ref length] > 1 && ([ref characterAtIndex: 1] == 'x' || [ref characterAtIndex: 1] == 'X')) {
+                [[NSScanner scannerWithString: [ref substringFromIndex: 2]] scanHexLongLong: &code];
+            } else {
+                code = strtoull([[ref substringFromIndex: 1] UTF8String], NULL, 10);
+            }
+            if (code > 0 && code <= 0x10FFFF && ! (code >= 0xD800 && code <= 0xDFFF)) {
+                UTF32Char c = (UTF32Char) code;
+                replacement = [[[NSString alloc] initWithBytes: &c
+                                                        length: sizeof(c)
+                                                      encoding: NSUTF32LittleEndianStringEncoding] autorelease];
+            }
+        } else {
+            replacement = [named objectForKey: ref];
+        }
+        if (! replacement) {
+            continue;
+        }
+        [result appendString: [s substringWithRange: NSMakeRange(last, [match range].location - last)]];
+        [result appendString: replacement];
+        last = NSMaxRange([match range]);
+    }
+    [result appendString: [s substringFromIndex: last]];
     return result;
 }
 
@@ -594,6 +669,8 @@ static NSString* alertMessageFromHTML(NSString* html)
 {
     [confirmAction_ release];
     confirmAction_ = nil;
+    [confirmPage_ release];
+    confirmPage_ = nil;
     [confirmFields_ release];
     confirmFields_ = nil;
     [confirmedPost_ release];
@@ -679,6 +756,7 @@ static NSString* alertMessageFromHTML(NSString* html)
                 confirmAction_ = [url retain];
             }
             confirmFields_ = [[form objectForKey: @"fields"] retain];
+            confirmPage_ = [url retain];
             confirmedPost_ = [post copy];
         }
     }
@@ -711,7 +789,8 @@ static NSData* formBody(NSArray* fields)
     if (confirmFields_ && [confirmedPost_ isEqualToString: post]) {
         // OK on the confirmation page: submit its form as it is.
         url = [[confirmAction_ retain] autorelease];
-        referer = url;
+        // The page the form came from, as a browser would send.
+        referer = [[confirmPage_ retain] autorelease];
         fields = [[confirmFields_ retain] autorelease];
     } else {
         url = [NSURL URLWithString: @"/test/bbs.cgi" relativeToURL: [self URLOfBoard]];
@@ -799,6 +878,7 @@ static NSData* formBody(NSArray* fields)
     isUpdating_ = NO;
     userAgent_ = nil;
     confirmAction_ = nil;
+    confirmPage_ = nil;
     confirmFields_ = nil;
     confirmedPost_ = nil;
     
