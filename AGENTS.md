@@ -51,6 +51,16 @@ lipo -info build/Build/Products/Release/SevenFour.app/Contents/MacOS/SevenFour
 - 署名はローカル実行用のアドホック署名（`CODE_SIGN_IDENTITY = "-"`）です。
 - ソースやリソースを追加・削除・移動したら `xcodegen generate` を再実行してください。`SevenFour/` 以下のファイルは自動で取り込まれます。
 
+## CI
+
+`.github/workflows/build.yml`（GitHub Actions）が、PR の作成・更新時と main への push 時に次を実行します。
+
+- `macos-26` ランナー（Xcode 26 以降）で `xcodegen generate` → Universal の Release ビルド
+- アプリのバイナリに arm64 と x86_64 の両方が含まれていることの確認
+- ビルドしたアプリ（`SevenFour.zip`）を Artifact として 7 日間保存
+
+自動テストはないので、CI で確認できるのはビルドが通ることまでです。ビルド設定を変えるときは、ローカル（Xcode 27）だけでなく CI の Xcode でも通ることを確認してください。
+
 ## コーディング上の注意
 
 - **MRC のまま維持すること。** `retain` / `release` / `autorelease` / `dealloc` のバランスに注意してください。ARC は有効にしないでください（`CLANG_ENABLE_OBJC_ARC: NO`）。
