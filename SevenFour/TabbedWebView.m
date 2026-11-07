@@ -2,6 +2,7 @@
 
 #import "TabbedWebView.h"
 #import <WebKit/WebKit.h>
+#import "NSImage+SFSymbols.h"
 
 @interface NSImage(TileInRect)
 - (BOOL) tileInRect: (NSRect) dstRect
@@ -323,24 +324,14 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
         path = [NSString stringWithFormat: @"%@/tab.png", [[NSBundle mainBundle] resourcePath]];
 		TAB_BACKGROUND = [[NSImage alloc] initWithContentsOfFile: path];
 
-        path = [NSString stringWithFormat: @"%@/tabClose.png", [[NSBundle mainBundle] resourcePath]];
-		NSImage* image = [[NSImage alloc] initWithContentsOfFile: path];
-        
-        TAB_CLOSE_ACTIVE = [[NSImage alloc] initWithSize: NSMakeSize(16, 16)];
-        [TAB_CLOSE_ACTIVE lockFocus];
-        [image drawInRect: NSMakeRect(0, 0, 16, 16)
-                 fromRect: NSMakeRect(0, 16, 16, 16)
-                operation: NSCompositeSourceOver
-                 fraction: 1.0];
-        [TAB_CLOSE_ACTIVE unlockFocus];
-        
-        TAB_CLOSE_INACTIVE = [[NSImage alloc] initWithSize: NSMakeSize(16, 16)];
-        [TAB_CLOSE_INACTIVE lockFocus];
-        [image drawInRect: NSMakeRect(0, 0, 16, 16)
-                 fromRect: NSMakeRect(0, 0, 16, 16)
-                operation: NSCompositeSourceOver
-                 fraction: 1.0];
-        [TAB_CLOSE_INACTIVE unlockFocus];
+        TAB_CLOSE_ACTIVE = [[NSImage sf_imageWithSymbolName: @"xmark.circle.fill"
+                                                   pointSize: 12
+                                                       color: [NSColor secondaryLabelColor]
+                                                        size: NSMakeSize(16, 16)] retain];
+        TAB_CLOSE_INACTIVE = [[NSImage sf_imageWithSymbolName: @"xmark.circle.fill"
+                                                     pointSize: 12
+                                                         color: [NSColor tertiaryLabelColor]
+                                                          size: NSMakeSize(16, 16)] retain];
     }
     
     webViews_ = [[NSMutableArray alloc] init];

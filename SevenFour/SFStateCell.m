@@ -2,6 +2,7 @@
 
 #import "SFStateCell.h"
 #import "SFThread.h"
+#import "NSImage+SFSymbols.h"
 
 
 @implementation SFThread(SFThreadState)
@@ -19,41 +20,45 @@
 
 @implementation SFStateCell
 
-// state.png, (12 x 12) x 5 = (12 x 60)
-NSImage* ICONS;
+enum { SF_STATE_ICON_SIZE = 12 };
+
+// state 1 (new) is a red dot, state 2 (updated) is a blue dot.
+static NSImage* SFStateIcon(int state)
+{
+	static NSImage* icons[3] = { nil, nil, nil };
+
+	if (state < 1 || state > 2)
+		return nil;
+
+	if (! icons[state]) {
+		NSColor* color = (state == 1) ? [NSColor systemRedColor] : [NSColor systemBlueColor];
+		icons[state] = [[NSImage sf_imageWithSymbolName: @"circle.fill"
+											  pointSize: 9
+												  color: color
+												   size: NSMakeSize(SF_STATE_ICON_SIZE, SF_STATE_ICON_SIZE)] retain];
+	}
+	return icons[state];
+}
 
 - (void) drawInteriorWithFrame: (NSRect) frame 
 						inView: (NSView*) view
 {
-    if (! ICONS) {
-#if 1
-		NSString* path;
-		path = [[NSBundle mainBundle] pathForResource: @"state" ofType: @"png"];
-		
-		ICONS = [[NSImage alloc] initWithContentsOfFile: path];
-#else
-        ICONS = nil;
-#endif
-	}
-	
+	NSImage* icon = SFStateIcon([self intValue]);
+	if (! icon)
+		return;
+
 	// Center
-	NSPoint point = frame.origin;
-	point.x += (frame.size.width  - 12) / 2;
-	point.y += (frame.size.height - 12) / 2;
-	
-	if([view isFlipped]) {
-		point.y += 12;
-	}
-    
 	NSRect rect;
-	rect.origin.x = 0;
-	rect.size.width  = 12;
-	rect.size.height = 12;
-	
-	// (0, 0) == (left, bottom)
-	rect.origin.y = 12 * [self intValue];
-	
-	[ICONS dissolveToPoint: point fromRect: rect fraction: 1.0];
+	rect.size = NSMakeSize(SF_STATE_ICON_SIZE, SF_STATE_ICON_SIZE);
+	rect.origin.x = frame.origin.x + (frame.size.width  - rect.size.width)  / 2;
+	rect.origin.y = frame.origin.y + (frame.size.height - rect.size.height) / 2;
+
+	[icon drawInRect: rect
+			fromRect: NSZeroRect
+		   operation: NSCompositingOperationSourceOver
+			fraction: 1.0
+	  respectFlipped: YES
+			   hints: nil];
 }
 
 @end

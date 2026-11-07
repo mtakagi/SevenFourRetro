@@ -12,42 +12,56 @@
 <dict>
     <key>label</key>
     <string>板一覧</string>
+    <key>symbol</key>
+    <string>sidebar.left</string>
 </dict>
 
 <key>updateBoard</key>
 <dict>
     <key>label</key>
     <string>板更新</string>
+    <key>symbol</key>
+    <string>arrow.triangle.2.circlepath</string>
 </dict>
 
 <key>postToThread</key>
 <dict>
     <key>label</key>
     <string>書き込む...</string>
+    <key>symbol</key>
+    <string>square.and.pencil</string>
 </dict>
 
 <key>updateThread</key>
 <dict>
     <key>label</key>
     <string>スレ更新</string>
+    <key>symbol</key>
+    <string>arrow.clockwise</string>
 </dict>
 
 <key>deleteThreadCache</key>
 <dict>
     <key>label</key>
     <string>ログを削除</string>
+    <key>symbol</key>
+    <string>trash</string>
 </dict>
 
 <key>newTab</key>
 <dict>
     <key>label</key>
     <string>新規タブ</string>
+    <key>symbol</key>
+    <string>plus.square.on.square</string>
 </dict>
 
 <key>closeTab</key>
 <dict>
     <key>label</key>
     <string>タブを閉じる</string>
+    <key>symbol</key>
+    <string>xmark.square</string>
 </dict>
 
 <key>boardSearch</key>
@@ -66,6 +80,8 @@
 <dict>
     <key>label</key>
     <string>表示切り替え</string>
+    <key>symbol</key>
+    <string>rectangle.split.1x2</string>
 </dict>
 
 </dict>

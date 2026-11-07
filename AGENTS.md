@@ -63,6 +63,10 @@ lipo -info build/Build/Products/Release/SevenFour.app/Contents/MacOS/SevenFour
   - 旧 nib には現行 AppKit で読み込むと例外になるデータが残っていることがあります（例: `PostWindow.nib` の `NSComboBox` 内部テーブル列の `NSIdentifier` が数値だった。#2）。`keyedobjects.nib` は NSKeyedArchiver のバイナリ plist なので、`plistlib` などで該当オブジェクトだけを書き換えて修正できます。
   - `.nib` ディレクトリ内のファイルだけを変更しても Xcode は再コンパイルしません。`touch SevenFour/Japanese.lproj/<Name>.nib` してからビルドしてください。
 - IBAction やツールバーのアクション内で発生した Objective-C 例外は AppKit に握りつぶされ、ログにも出ません。「ボタンを押しても何も起きない」場合は、例外を疑って `@try`/`@catch` で一時的にログを出すか、lldb で `objc_exception_throw` にブレークポイントを置いて調べてください。
+- **アイコンは SF Symbols を使います**（#5）。画像ファイルは追加しないでください。
+  - ツールバー: `Japanese.lproj/Toolbar.plist` の各項目の `symbol` キーにシンボル名を書きます（`SFMainWindowController.m` が `+[NSImage imageWithSystemSymbolName:accessibilityDescription:]` で読み込みます）。
+  - セルやボタンに色付きで描くときは `NSImage+SFSymbols.h` の `+sf_imageWithSymbolName:pointSize:color:size:` を使います（テンプレート画像にならないので色がそのまま出ます。動的カラーはダークモードに追従します）。
+  - 例外: タブの背景（`tab.png`）、アプリアイコン（`74.icns`）、分割バーの模様（`HTThreePaneSplitView.m`）はアイコンではないので画像のままです。
 - ソースのエンコーディングは UTF-8 です。
 - **通信は HTTPS 前提です。** 現行 SDK では App Transport Security (ATS) が有効なため、平文 HTTP の通信はブロックされます。ATS の例外は設定していません。
   - 板一覧のデフォルトは `https://menu.5ch.io/bbsmenu.html` です（`SFAppController.m`）。
@@ -76,6 +80,6 @@ lipo -info build/Build/Products/Release/SevenFour.app/Contents/MacOS/SevenFour
 open build/Build/Products/Release/SevenFour.app
 ```
 
-- 起動するとメインウィンドウ（スレッド一覧・タブ付き WebView）とサイドドロワー（板一覧）が表示されれば OK です。
+- 起動するとメインウィンドウ（左ペインの板一覧・スレッド一覧・タブ付き WebView）が表示されれば OK です。
 - 自動テストはありません。変更後は少なくとも Universal ビルドが通ること、arm64 で起動することを確認してください。
 - Intel 版は Intel Mac、または Rosetta 2 が入った Apple silicon Mac で `arch -x86_64 .../SevenFour` を実行して確認します。
