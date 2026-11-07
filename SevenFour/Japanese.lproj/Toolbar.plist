@@ -22,6 +22,8 @@
     <string>板更新</string>
     <key>symbol</key>
     <string>arrow.triangle.2.circlepath</string>
+    <key>animates</key>
+    <true/>
 </dict>
 
 <key>postToThread</key>
@@ -38,6 +40,8 @@
     <string>スレ更新</string>
     <key>symbol</key>
     <string>arrow.clockwise</string>
+    <key>animates</key>
+    <true/>
 </dict>
 
 <key>deleteThreadCache</key>

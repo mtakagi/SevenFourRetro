@@ -58,6 +58,11 @@
 	[thread_ update];
 }
 
+- (BOOL) isUpdatingThread
+{
+	return isFragmentLoading_ ? YES : NO;
+}
+
 - (void) loadThreadWithURL: (NSURL*) url
 {    
     SFThreadFactory* factory = [SFThreadFactory sharedFactory];
