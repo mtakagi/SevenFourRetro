@@ -41,6 +41,8 @@ targets:
       - sdk: Cocoa.framework
       - sdk: WebKit.framework
       - sdk: CoreServices.framework
+      # SF Symbol effects (spinning toolbar icons)
+      - sdk: Symbols.framework
       - sdk: libsqlite3.tbd
       - sdk: libz.tbd
     settings:

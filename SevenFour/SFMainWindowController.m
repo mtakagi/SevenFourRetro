@@ -17,6 +17,7 @@
 #import "WhiteFormatter.h"
 #import "RatingCell.h"
 #import "SFStateCell.h"
+#import "SFSymbolToolbarItem.h"
 
 #import "SFThreadHTMLFormatter.h"
 #import "Ch2Helper.h"
@@ -368,6 +369,7 @@ static SFMainWindowController* activeController_;
 - (IBAction) updateBoard: (id) sender
 {
     [[self document] updateBoard];
+    [self validateToolbarSoon: nil];
 }
 
 - (IBAction) toggleBoardTree: (id) sender
@@ -504,6 +506,7 @@ static SFMainWindowController* activeController_;
 {
     SFThreadView* tv = (SFThreadView*) [tabbedWebView selectedWebView];
     [tv updateThread];
+    [self validateToolbarSoon: nil];
 }
 
 /* delete selected thread from context menu */
@@ -627,6 +630,15 @@ static SFMainWindowController* activeController_;
                selector: @selector(reloadThreadList:)
                    name: SFThreadDidFinishUpdatingNotification
                  object: nil];
+    // Stop the spinning update icons when the work they show is done.
+    [center addObserver: self
+               selector: @selector(validateToolbarSoon:)
+                   name: SFThreadDidFinishUpdatingNotification
+                 object: nil];
+    [center addObserver: self
+               selector: @selector(validateToolbarSoon:)
+                   name: SFBoardDidFinishUpdatingNotification
+                 object: nil];
     
     // Tabbed WebView
     [self newTab: nil];
@@ -705,6 +717,10 @@ static SFMainWindowController* activeController_;
 		SFThreadView* tv = (SFThreadView*) [ary objectAtIndex: i];
 		[[tv thread] saveMetadata];
 	}
+
+	// Stop observing so a closed window's controller isn't messaged later.
+	[[NSNotificationCenter defaultCenter] removeObserver: self];
+	[NSObject cancelPreviousPerformRequestsWithTarget: self];
 }
 
 - (void) windowDidBecomeMain:(NSNotification*) n
@@ -743,12 +759,20 @@ static SFMainWindowController* activeController_;
      itemForItemIdentifier: (NSString*) identifier 
  willBeInsertedIntoToolbar: (BOOL) flag
 {
+    NSDictionary* dict = [toolbarItems_ objectForKey: identifier];
+
     NSToolbarItem* item;
-    item = [[NSToolbarItem alloc] initWithItemIdentifier: identifier];
+    if ([[dict objectForKey: @"animates"] boolValue]) {
+        // Spins its symbol while busy; see -isToolbarItemBusy:.
+        item = [[SFSymbolToolbarItem alloc] initWithItemIdentifier: identifier
+                                                        symbolName: [dict objectForKey: @"symbol"]
+                                                             label: [dict objectForKey: @"label"]];
+    } else {
+        item = [[NSToolbarItem alloc] initWithItemIdentifier: identifier];
+    }
     [item autorelease];
     [item setTarget: self];
     
-    NSDictionary* dict = [toolbarItems_ objectForKey: identifier];
     
     if ([identifier isEqualToString: @"search"]) {
         NSView* field = toolbarThreadSearch;
@@ -781,7 +805,7 @@ static SFMainWindowController* activeController_;
         [item setAction: NSSelectorFromString(s)];
     }
     NSString* symbol = [dict objectForKey: @"symbol"];
-    if (symbol) {
+    if (symbol && ! [item isKindOfClass: [SFSymbolToolbarItem class]]) {
         [item setImage: [NSImage imageWithSystemSymbolName: symbol
                                   accessibilityDescription: [dict objectForKey: @"label"]]];
     }
@@ -829,6 +853,34 @@ static SFMainWindowController* activeController_;
         @"search", 
         NSToolbarCustomizeToolbarItemIdentifier,
         nil];
+}
+
+// Whether the work an update item starts is still running.
+- (BOOL) isToolbarItemBusy: (NSToolbarItem*) item
+{
+    if ([item action] == @selector(updateBoard:)) {
+        return [[self document] isWorking];
+    } else if ([item action] == @selector(updateThread:)) {
+        SFThreadView* tv = (SFThreadView*) [tabbedWebView selectedWebView];
+        return [tv isUpdatingThread];
+    }
+    return NO;
+}
+
+// Notifications can arrive before other observers have updated their state
+// (e.g. SFThreadView clearing its updating flag), so validate on the next
+// pass of the run loop.
+- (void) validateToolbarSoon: (id) sender
+{
+    [NSObject cancelPreviousPerformRequestsWithTarget: self
+                                             selector: @selector(validateToolbar)
+                                               object: nil];
+    [self performSelector: @selector(validateToolbar) withObject: nil afterDelay: 0];
+}
+
+- (void) validateToolbar
+{
+    [toolbar_ validateVisibleItems];
 }
 
 -(BOOL) validateToolbarItem: (NSToolbarItem*) item
@@ -935,6 +987,7 @@ decisionListener: (id<WebPolicyDecisionListener>) listener
 - (void) tabbedWebView: (TabbedWebView*) twv didSelectWebView: (WebView*) wv
 {
 	[self updateDataSource: [[wv mainFrame] dataSource]];
+	[self validateToolbarSoon: nil];
 }
 
 #if 0

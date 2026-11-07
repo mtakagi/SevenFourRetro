@@ -13,6 +13,8 @@
 - (SFThread*) thread;
 - (void) loadThreadWithURL: (NSURL*) url;
 - (void) updateThread;
+// YES from -updateThread until the thread finishes updating.
+- (BOOL) isUpdatingThread;
 
 - (float) estimatedProgress;
 

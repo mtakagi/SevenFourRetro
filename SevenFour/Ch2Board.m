@@ -215,7 +215,7 @@ NSString* Ch2BoardDidFinishParsingNotification = @"Ch2BoardDidFinishParsingNotif
     NSLog(@"Ch2Board - connection:didFailWithError:");
 
     [connection release];
-    [receivedData_ dealloc];
+    [receivedData_ release];
     receivedData_ = nil;
 	
     [[NSNotificationCenter defaultCenter]
