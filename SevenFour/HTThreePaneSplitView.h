@@ -78,6 +78,7 @@ NSDictionary* _layoutInfo{
 
 - (void) showBottomView: (BOOL) flag;
 - (void) showSideView: (BOOL) flag;
+- (BOOL) isSideViewVisible;
 
 // IBAction
 - (IBAction)toggleVertical:(id)sender;
