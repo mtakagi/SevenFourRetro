@@ -64,9 +64,45 @@ static NSMutableDictionary* sharedFormData_ = NULL;
     return [result autorelease];
 }
 
+// Shift_JIS bytes of s. Like a browser submitting a Shift_JIS form, characters
+// Shift_JIS can't represent (e.g. emoji) are sent as numeric character
+// references instead of making the whole value empty.
+static NSData* shiftJISDataWithReferences(NSString* s)
+{
+    NSData* data = [s dataUsingEncoding: NSShiftJISStringEncoding];
+    if (data) {
+        return data;
+    }
+
+    NSMutableData* result = [NSMutableData data];
+    NSUInteger i = 0;
+    while (i < [s length]) {
+        NSRange r = [s rangeOfComposedCharacterSequenceAtIndex: i];
+        NSString* c = [s substringWithRange: r];
+        NSData* d = [c dataUsingEncoding: NSShiftJISStringEncoding];
+        if (d) {
+            [result appendData: d];
+        } else {
+            NSUInteger j = 0;
+            while (j < [c length]) {
+                UTF32Char code = [c characterAtIndex: j];
+                if (CFStringIsSurrogateHighCharacter(code) && j + 1 < [c length]) {
+                    code = CFStringGetLongCharacterForSurrogatePair(code, [c characterAtIndex: j + 1]);
+                    j++;
+                }
+                j++;
+                [result appendData: [[NSString stringWithFormat: @"&#%u;", (unsigned) code]
+                                       dataUsingEncoding: NSASCIIStringEncoding]];
+            }
+        }
+        i = NSMaxRange(r);
+    }
+    return result;
+}
+
 - (NSString*) URLencode
 {
-    NSData* data = [self dataUsingEncoding: NSShiftJISStringEncoding];
+    NSData* data = shiftJISDataWithReferences(self);
     NSMutableString* result = [[NSMutableString alloc] init];
     
     int i;
@@ -99,18 +135,57 @@ static NSMutableDictionary* sharedFormData_ = NULL;
 }
 @end
 
+// Decodes HTML character references: decimal (&#39;), hexadecimal (&#x27;)
+// and the named ones a bbs.cgi page uses. Unknown names are left as they are.
 static NSString* unescapeHTML(NSString* s)
 {
-    NSMutableString* result = [NSMutableString stringWithString: s];
-    NSArray* entities = [NSArray arrayWithObjects:
-        @"&lt;", @"<", @"&gt;", @">", @"&quot;", @"\"", @"&#39;", @"'", @"&amp;", @"&", nil];
-    int i;
-    for (i = 0; i < [entities count]; i += 2) {
-        [result replaceOccurrencesOfString: [entities objectAtIndex: i]
-                                withString: [entities objectAtIndex: i + 1]
-                                   options: 0
-                                     range: NSMakeRange(0, [result length])];
+    if ([s rangeOfString: @"&"].location == NSNotFound) {
+        return s;
     }
+
+    static NSRegularExpression* pattern = nil;
+    static NSDictionary* named = nil;
+    if (! pattern) {
+        pattern = [[NSRegularExpression alloc] initWithPattern: @"&(#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);"
+                                                       options: 0
+                                                         error: NULL];
+        named = [[NSDictionary alloc] initWithObjectsAndKeys:
+            @"&", @"amp", @"<", @"lt", @">", @"gt", @"\"", @"quot", @"'", @"apos",
+            @" ", @"nbsp", @"©", @"copy", @"®", @"reg", @"…", @"hellip", nil];
+    }
+
+    NSMutableString* result = [NSMutableString string];
+    NSUInteger last = 0;
+    NSArray* matches = [pattern matchesInString: s options: 0 range: NSMakeRange(0, [s length])];
+    NSEnumerator* enumerator = [matches objectEnumerator];
+    NSTextCheckingResult* match;
+    while ((match = [enumerator nextObject]) != nil) {
+        NSString* ref = [s substringWithRange: [match rangeAtIndex: 1]];
+        NSString* replacement = nil;
+        if ([ref hasPrefix: @"#"]) {
+            unsigned long long code = 0;
+            if ([ref length] > 1 && ([ref characterAtIndex: 1] == 'x' || [ref characterAtIndex: 1] == 'X')) {
+                [[NSScanner scannerWithString: [ref substringFromIndex: 2]] scanHexLongLong: &code];
+            } else {
+                code = strtoull([[ref substringFromIndex: 1] UTF8String], NULL, 10);
+            }
+            if (code > 0 && code <= 0x10FFFF && ! (code >= 0xD800 && code <= 0xDFFF)) {
+                UTF32Char c = (UTF32Char) code;
+                replacement = [[[NSString alloc] initWithBytes: &c
+                                                        length: sizeof(c)
+                                                      encoding: NSUTF32LittleEndianStringEncoding] autorelease];
+            }
+        } else {
+            replacement = [named objectForKey: ref];
+        }
+        if (! replacement) {
+            continue;
+        }
+        [result appendString: [s substringWithRange: NSMakeRange(last, [match range].location - last)]];
+        [result appendString: replacement];
+        last = NSMaxRange([match range]);
+    }
+    [result appendString: [s substringFromIndex: last]];
     return result;
 }
 
@@ -143,6 +218,67 @@ static NSDictionary* parseHTMLAttributes(NSString* s)
         [result setObject: unescapeHTML(value) forKey: name];
     }
     return result;
+}
+
+// The first POST form of a page: its action and its successful controls in
+// document order, as {name, value} pairs. Hidden inputs and named submit
+// buttons are included, as a browser submitting that form would send them.
+static NSDictionary* postFormFromHTML(NSString* html)
+{
+    NSRegularExpression* formPattern = [NSRegularExpression
+        regularExpressionWithPattern: @"<form\\b([^>]*)>(.*?)</form>"
+                             options: NSRegularExpressionCaseInsensitive | NSRegularExpressionDotMatchesLineSeparators
+                               error: NULL];
+    NSRegularExpression* inputPattern = [NSRegularExpression
+        regularExpressionWithPattern: @"<input\\b[^>]*>"
+                             options: NSRegularExpressionCaseInsensitive
+                               error: NULL];
+
+    NSArray* forms = [formPattern matchesInString: html options: 0 range: NSMakeRange(0, [html length])];
+    NSEnumerator* formEnumerator = [forms objectEnumerator];
+    NSTextCheckingResult* form;
+    while ((form = [formEnumerator nextObject]) != nil) {
+        NSDictionary* formAttrs = parseHTMLAttributes([html substringWithRange: [form rangeAtIndex: 1]]);
+        NSString* method = [[formAttrs objectForKey: @"method"] lowercaseString];
+        if (! [method isEqualToString: @"post"]) {
+            continue;
+        }
+
+        NSString* body = [html substringWithRange: [form rangeAtIndex: 2]];
+        NSMutableArray* fields = [NSMutableArray array];
+        BOOL hasSubmit = NO;
+        NSArray* inputs = [inputPattern matchesInString: body options: 0 range: NSMakeRange(0, [body length])];
+        NSEnumerator* inputEnumerator = [inputs objectEnumerator];
+        NSTextCheckingResult* input;
+        while ((input = [inputEnumerator nextObject]) != nil) {
+            NSDictionary* attrs = parseHTMLAttributes([body substringWithRange: [input range]]);
+            NSString* type = [[attrs objectForKey: @"type"] lowercaseString];
+            NSString* name = [attrs objectForKey: @"name"];
+            NSString* value = [attrs objectForKey: @"value"];
+            if ([name length] == 0) {
+                continue;
+            }
+            // Only the clicked (first) submit button is sent.
+            if ([type isEqualToString: @"submit"]) {
+                if (hasSubmit) {
+                    continue;
+                }
+                hasSubmit = YES;
+            } else if (! [type isEqualToString: @"hidden"]) {
+                continue;
+            }
+            [fields addObject: [NSArray arrayWithObjects: name, (value ? value : @""), nil]];
+        }
+
+        if ([fields count] == 0) {
+            continue;
+        }
+        NSString* action = [formAttrs objectForKey: @"action"];
+        return [NSDictionary dictionaryWithObjectsAndKeys:
+            fields, @"fields",
+            (action ? action : @""), @"action", nil];
+    }
+    return nil;
 }
 
 // Plain text of an HTML page, for showing a server message we can't parse.
@@ -529,7 +665,37 @@ static NSString* alertMessageFromHTML(NSString* html)
     }
 }
 
+- (void) clearConfirmation
+{
+    [confirmAction_ release];
+    confirmAction_ = nil;
+    [confirmPage_ release];
+    confirmPage_ = nil;
+    [confirmFields_ release];
+    confirmFields_ = nil;
+    [confirmedPost_ release];
+    confirmedPost_ = nil;
+}
+
+// Saves the last response when the DebugPostResponse default is set, so a
+// failing post can be investigated without posting through other tools.
+- (void) saveResponseForDebugging: (NSData*) data URL: (NSURL*) url
+{
+    if (! [[NSUserDefaults standardUserDefaults] boolForKey: @"DebugPostResponse"]) {
+        return;
+    }
+    NSString* dir = [NSHomeDirectory() stringByAppendingPathComponent: @"Library/Logs/SevenFour"];
+    [[NSFileManager defaultManager] createDirectoryAtPath: dir
+                              withIntermediateDirectories: YES
+                                               attributes: nil
+                                                    error: NULL];
+    [data writeToFile: [dir stringByAppendingPathComponent: @"LastPostResponse.html"] atomically: YES];
+    NSLog(@"Ch2Thread: saved the post response from %@ to %@", url, dir);
+}
+
 - (Ch2ThreadPostResult) resultFromHTML: (NSData*) data
+                                   URL: (NSURL*) url
+                                  post: (NSString*) post
 {
     if ([data length] == 0) {
         [alertMessage_ release];
@@ -578,56 +744,79 @@ static NSString* alertMessageFromHTML(NSString* html)
 	}	
 
     alertMessage_ = [alertMessageFromHTML(content) retain];
+
+    // A confirmation page holds the form to submit for the same post.
+    [self clearConfirmation];
+    if (result != Ch2ThreadPostSuccess && url) {
+        NSDictionary* form = postFormFromHTML(content);
+        if (form) {
+            NSString* action = [form objectForKey: @"action"];
+            confirmAction_ = [[[NSURL URLWithString: action relativeToURL: url] absoluteURL] retain];
+            if (! confirmAction_) {
+                confirmAction_ = [url retain];
+            }
+            confirmFields_ = [[form objectForKey: @"fields"] retain];
+            confirmPage_ = [url retain];
+            confirmedPost_ = [post copy];
+        }
+    }
     
     return result;
+}
+
+// application/x-www-form-urlencoded body from {name, value} pairs, in Shift_JIS.
+static NSData* formBody(NSArray* fields)
+{
+    NSMutableArray* pairs = [NSMutableArray array];
+    NSEnumerator* enumerator = [fields objectEnumerator];
+    NSArray* field;
+    while ((field = [enumerator nextObject]) != nil) {
+        [pairs addObject: [NSString stringWithFormat: @"%@=%@",
+            [[field objectAtIndex: 0] URLencode], [[field objectAtIndex: 1] URLencode]]];
+    }
+    return [[pairs componentsJoinedByString: @"&"] dataUsingEncoding: NSASCIIStringEncoding];
 }
 
 - (Ch2ThreadPostResult) postWithName: (NSString*) name
                                 mail: (NSString*) mail
                                 body: (NSString*) body
 {
-    NSURL* url = [NSURL URLWithString: @"/test/bbs.cgi"
-                        relativeToURL: [self URLOfBoard]];
+    NSString* post = [NSString stringWithFormat: @"%@\n%@\n%@", name, mail, body];
+    NSURL* url;
+    NSURL* referer;
+    NSArray* fields;
 
-    // Hidden fields are sent percent-encoded in Shift_JIS like the rest.
-    NSMutableDictionary* dict = [NSMutableDictionary dictionary];
-    NSEnumerator* enumerator = [sharedFormData_ keyEnumerator];
-    id key;
-    while ((key = [enumerator nextObject])) {
-        [dict setObject: [[sharedFormData_ objectForKey: key] URLencode]
-                 forKey: [key URLencode]];
+    if (confirmFields_ && [confirmedPost_ isEqualToString: post]) {
+        // OK on the confirmation page: submit its form as it is.
+        url = [[confirmAction_ retain] autorelease];
+        // The page the form came from, as a browser would send.
+        referer = [[confirmPage_ retain] autorelease];
+        fields = [[confirmFields_ retain] autorelease];
+    } else {
+        url = [NSURL URLWithString: @"/test/bbs.cgi" relativeToURL: [self URLOfBoard]];
+        referer = [self URLOfBoard];
+
+        NSMutableArray* ary = [NSMutableArray array];
+        [ary addObject: [NSArray arrayWithObjects: @"submit", @"書き込む", nil]];
+        [ary addObject: [NSArray arrayWithObjects: @"FROM", name, nil]];
+        [ary addObject: [NSArray arrayWithObjects: @"mail", mail, nil]];
+        [ary addObject: [NSArray arrayWithObjects: @"MESSAGE", body, nil]];
+        [ary addObject: [NSArray arrayWithObjects: @"bbs", [self boardName], nil]];
+        [ary addObject: [NSArray arrayWithObjects: @"key", [NSString stringWithFormat: @"%d", number_], nil]];
+        // bbs.cgi rejects a form whose time is far from now.
+        [ary addObject: [NSArray arrayWithObjects: @"time",
+            [NSString stringWithFormat: @"%lld", (long long) [[NSDate date] timeIntervalSince1970]], nil]];
+
+        // Hidden fields kept from an earlier confirmation page.
+        NSEnumerator* enumerator = [sharedFormData_ keyEnumerator];
+        NSString* key;
+        while ((key = [enumerator nextObject])) {
+            [ary addObject: [NSArray arrayWithObjects: key, [sharedFormData_ objectForKey: key], nil]];
+        }
+        fields = ary;
     }
-    
-    [dict setValue: [[self boardName] URLencode]
-            forKey: @"bbs"];
-    [dict setValue: [NSString stringWithFormat: @"%d", number_] 
-            forKey: @"key"];
-    // bbs.cgi rejects a form whose time is far from now.
-    [dict setValue: [NSString stringWithFormat: @"%lld", (long long) [[NSDate date] timeIntervalSince1970]]
-            forKey: @"time"];
-    [dict setValue: @"%8F%91%82%AB%8D%9E%82%DE" 
-            forKey: @"submit"];
-        
-    [dict setValue: [name URLencode]
-            forKey: @"FROM"];
-    [dict setValue: [mail URLencode] 
-            forKey: @"mail"];
-    [dict setValue: [body URLencode] 
-            forKey: @"MESSAGE"];
-    
-    NSMutableString* string = [NSMutableString string]; 
-    
-    enumerator = [dict keyEnumerator];
-    while ((key = [enumerator nextObject])) {
-        [string appendString: key];
-        [string appendString: @"="];
-        [string appendString: [dict objectForKey: key]];
-        [string appendString: @"&"];
-    }    
-    [string deleteCharactersInRange: NSMakeRange([string length] - 1, 1)];
+    [self clearConfirmation];
 
-    NSData* data = [string dataUsingEncoding: NSASCIIStringEncoding];
-    
     // Cookies are left to the shared cookie storage, so the ones bbs.cgi sets
     // on its confirmation page are sent back with the next post.
     NSMutableURLRequest* req;
@@ -636,17 +825,22 @@ static NSString* alertMessageFromHTML(NSString* html)
                               timeoutInterval: 60.0];
     [req setHTTPMethod: @"POST"];
     [req setHTTPShouldHandleCookies: YES];
+    [req setMainDocumentURL: url];
     [req setValue: userAgent_ forHTTPHeaderField: @"User-Agent"];
-    [req setValue: [[self URLOfBoard] absoluteString] forHTTPHeaderField: @"Referer"];
+    [req setValue: [referer absoluteString] forHTTPHeaderField: @"Referer"];
     [req setValue: @"application/x-www-form-urlencoded" forHTTPHeaderField: @"Content-Type"];
-    [req setHTTPBody: data];
+    [req setHTTPBody: formBody(fields)];
 
     NSHTTPURLResponse* resp = nil;
     NSError* error = nil;
-    data = [NSURLConnection sendSynchronousRequest: req
-								 returningResponse: &resp
-											 error: &error];
-	Ch2ThreadPostResult	result = [self resultFromHTML: data];
+    NSData* data = [NSURLConnection sendSynchronousRequest: req
+                                         returningResponse: &resp
+                                                     error: &error];
+    [self saveResponseForDebugging: data URL: [resp URL]];
+
+	Ch2ThreadPostResult	result = [self resultFromHTML: data
+	                                              URL: ([resp URL] ? [resp URL] : url)
+	                                             post: post];
 	if (! data && error) {
 		[alertMessage_ release];
 		alertMessage_ = [[error localizedDescription] retain];
@@ -683,6 +877,10 @@ static NSString* alertMessageFromHTML(NSString* html)
     alertMessage_ = nil;
     isUpdating_ = NO;
     userAgent_ = nil;
+    confirmAction_ = nil;
+    confirmPage_ = nil;
+    confirmFields_ = nil;
+    confirmedPost_ = nil;
     
     /* Initialize static values */
     if (! sharedFormData_) {
@@ -716,6 +914,7 @@ static NSString* alertMessageFromHTML(NSString* html)
     
     [receivedData_ release];
     [alertMessage_ release];
+    [self clearConfirmation];
     
     [delegate_ release];
     

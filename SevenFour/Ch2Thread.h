@@ -38,6 +38,14 @@ extern NSString* Ch2ThreadConnectionDidFailNotification;
     id delegate_;
     
     NSString* userAgent_;
+
+    // The form of the last confirmation page bbs.cgi returned, and the post it
+    // confirms. Posting the same name, mail and body again submits this form
+    // as a browser would.
+    NSURL* confirmAction_;
+    NSURL* confirmPage_;
+    NSArray* confirmFields_;
+    NSString* confirmedPost_;
 }
 
 - (id) initWithNumber: (int) number
