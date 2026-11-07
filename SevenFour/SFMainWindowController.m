@@ -780,14 +780,12 @@ static SFMainWindowController* activeController_;
         NSString* s = [NSString stringWithFormat: @"%@:", identifier];
         [item setAction: NSSelectorFromString(s)];
     }
-    NSString* path;
-    path = [[NSBundle mainBundle] pathForResource: identifier 
-                                           ofType: @"png"];
-    NSImage* image;
-    image = [[NSImage alloc] initWithContentsOfFile: path];
-    [item setImage: image];
-    [image release];
-    
+    NSString* symbol = [dict objectForKey: @"symbol"];
+    if (symbol) {
+        [item setImage: [NSImage imageWithSystemSymbolName: symbol
+                                  accessibilityDescription: [dict objectForKey: @"label"]]];
+    }
+
     [item setLabel: [dict objectForKey: @"label"]];
     [item setPaletteLabel: [item label]];
     

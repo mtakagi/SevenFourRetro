@@ -1,6 +1,7 @@
 /* This file is not copyrighted and may be used freely. */
 
 #import "RatingCell.h"
+#import "NSImage+SFSymbols.h"
 
 @implementation RatingCell
 
@@ -55,28 +56,26 @@ static NSImage* STAR = NULL;
 						inView: (NSView*) view
 {
     if (! STAR) {
-#if 1
-		NSString* path;
-		path = [[NSBundle mainBundle] pathForResource: @"star" ofType: @"png"];
+		STAR = [[NSImage sf_imageWithSymbolName: @"star.fill"
+									  pointSize: 10
+										  color: [NSColor labelColor]
+										   size: NSMakeSize(12, 12)] retain];
+    }
 
-		STAR = [[NSImage alloc] initWithContentsOfFile: path];
-#else
-        STAR = nil;
-#endif
-   }
+	NSRect rect;
+	rect.size = NSMakeSize(12, 12);
+	rect.origin.x = frame.origin.x + 5;
+	rect.origin.y = frame.origin.y + (frame.size.height - rect.size.height) / 2;
 
-	NSPoint point = frame.origin;
-	point.y += (frame.size.height - 12) / 2;
-	
-	if([view isFlipped]) {
-		point.y += [STAR size].height;
-	}
-    
 	int i;
-	point.x += 5;
     for (i = 0; i < [[self objectValue] intValue]; i++) {
-        [STAR dissolveToPoint: point fraction: 1.0];
-		point.x += 16;
+		[STAR drawInRect: rect
+				fromRect: NSZeroRect
+			   operation: NSCompositingOperationSourceOver
+				fraction: 1.0
+		  respectFlipped: YES
+				   hints: nil];
+		rect.origin.x += 16;
     }
 }
 
