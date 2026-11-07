@@ -32,7 +32,7 @@
     NSView* docView = [[[threadView mainFrame] frameView] documentView];    
 
 	NSSize screenSize = [[[self window] screen] frame].size;
-	screenSize.height -= [NSMenuView menuBarHeight];
+	screenSize.height -= [[NSApp mainMenu] menuBarHeight];
     
 	screenSize.height -= [NSScreen dockHeight];
 	

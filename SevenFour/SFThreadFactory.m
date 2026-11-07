@@ -53,7 +53,7 @@ SFThreadFactory* instance_ = nil;
 		 4: NUMBER
 		 */
 		board = [NSURL URLWithString: 
-			[NSString stringWithFormat: @"http://%@/%@", [url host], [ary objectAtIndex: 3]]];
+			[NSString stringWithFormat: @"%@://%@/%@", SFSchemeOfURL(url), [url host], [ary objectAtIndex: 3]]];
 		
 		return [self threadWithBoard: board
 							  number: [[ary objectAtIndex: 4] intValue]];		
@@ -66,7 +66,7 @@ SFThreadFactory* instance_ = nil;
 		 3: NUMBER.dat
 		 */
 		board = [NSURL URLWithString: 
-			[NSString stringWithFormat: @"http://%@/%@", [url host], [ary objectAtIndex: 1]]];
+			[NSString stringWithFormat: @"%@://%@/%@", SFSchemeOfURL(url), [url host], [ary objectAtIndex: 1]]];
 		NSString* last = [ary objectAtIndex: 3];
 		return [self threadWithBoard: board
 							  number: [[last substringToIndex: [last length] - 4] intValue]];		

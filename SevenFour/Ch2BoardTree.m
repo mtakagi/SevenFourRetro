@@ -60,7 +60,8 @@
     OGRegularExpression* regex;
     OGRegularExpressionMatch* match;
     
-    regex = [OGRegularExpression regularExpressionWithString:@"^<BR><BR><B>(.+?)</B><BR>"];
+    regex = [OGRegularExpression regularExpressionWithString:@"^<BR><BR><B>(.+?)</B><BR>"
+                                                    options: OgreIgnoreCaseOption];
     if (match = [regex matchInString: line]) {
         [result setObject: [match substringAtIndex: 1] 
                    forKey: @"title"];
@@ -70,7 +71,8 @@
         return result;
     }
 
-    regex = [OGRegularExpression regularExpressionWithString:@"^<A HREF=(.+?)>(.+?)</A>"];
+    regex = [OGRegularExpression regularExpressionWithString:@"^<A HREF=(.+?)>(.+?)</A>"
+                                                    options: OgreIgnoreCaseOption];
     if (match = [regex matchInString: line]) {
         [result setObject: [match substringAtIndex: 1] 
                    forKey: @"url"];

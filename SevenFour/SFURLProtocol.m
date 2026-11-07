@@ -35,7 +35,7 @@
 		 5: RANGE
 		 */
 		NSURL* board = [NSURL URLWithString: 
-			[NSString stringWithFormat: @"http://%@/%@", [url host], [ary objectAtIndex: 3]]];
+			[NSString stringWithFormat: @"https://%@/%@", [url host], [ary objectAtIndex: 3]]];
 		
 		*thread = [factory threadWithBoard: board
 									number: [[ary objectAtIndex: 4] intValue]];		
@@ -52,7 +52,7 @@
 		 3: NUMBER.dat
 		 */
 		NSURL* board = [NSURL URLWithString: 
-			[NSString stringWithFormat: @"http://%@/%@", [url host], [ary objectAtIndex: 1]]];
+			[NSString stringWithFormat: @"https://%@/%@", [url host], [ary objectAtIndex: 1]]];
 		NSString* last = [ary objectAtIndex: 3];
 		*thread = [factory threadWithBoard: board
 									number: [[last substringToIndex: [last length] - 4] intValue]];

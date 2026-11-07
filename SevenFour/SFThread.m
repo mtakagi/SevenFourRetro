@@ -49,7 +49,7 @@ static QuickLiteDatabase* database_ = nil;
     
     // Create Index
     [database_ performQuery: 
-        @"CREATE UNIQUE INDEX threads_index ON threads (board, dat) ON CONFLICT IGNORE;"];
+        @"CREATE UNIQUE INDEX IF NOT EXISTS threads_index ON threads (board, dat);"];
 }
 
 + (void) openDatabase
@@ -149,7 +149,7 @@ static QuickLiteDatabase* database_ = nil;
     
     if ([cursor rowCount] == 0) {
         query = [NSString stringWithFormat:
-            @"INSERT INTO threads (dat, board, subject, count, number) VALUES (%d, '%@', '%@', %d, %d)",
+            @"INSERT OR IGNORE INTO threads (dat, board, subject, count, number) VALUES (%d, '%@', '%@', %d, %d)",
             number_, [board_ absoluteString],
             [QuickLiteDatabase prepareStringForQuery: subject_],
             count_, number_];
@@ -224,7 +224,8 @@ static QuickLiteDatabase* database_ = nil;
         [self setCount: [value intValue]];
     }
     
-    comment_ = [row stringForColumn: @"threads.comment"];
+    [comment_ release];
+    comment_ = [[row stringForColumn: @"threads.comment"] retain];
 }
 
 - (void) saveMetadata
@@ -243,7 +244,7 @@ static QuickLiteDatabase* database_ = nil;
 		return;
 	}
 	
-	[cursor setValue: [QuickLiteDatabase prepareStringForQuery: subject_]
+	[cursor setValue: subject_
 		   forColumn: @"threads.subject"];
 	
 	[cursor setValue: [NSNumber numberWithInt: local_] forColumn: @"threads.local"];
@@ -371,8 +372,8 @@ static QuickLiteDatabase* database_ = nil;
 
 - (NSURL*) URLOfHTML
 {
-    NSString* s = [NSString stringWithFormat: @"http://%@/test/read.cgi%@/%d/",
-        [board_ host], [board_ path], number_];
+    NSString* s = [NSString stringWithFormat: @"%@://%@/test/read.cgi%@/%d/",
+        SFSchemeOfURL(board_), [board_ host], [board_ path], number_];
     
     return [NSURL URLWithString: s];
 }
