@@ -1,0 +1,64 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Only the latest run of a branch or PR matters.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Universal Release build
+    # The deployment target is macOS 26, which needs Xcode 26 or later.
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (arm64 + x86_64)
+        run: |
+          set -o pipefail
+          xcodebuild -project SevenFour.xcodeproj -scheme SevenFour \
+            -configuration Release -destination 'generic/platform=macOS' \
+            -derivedDataPath build build
+
+      - name: Check architectures
+        run: |
+          BIN=build/Build/Products/Release/SevenFour.app/Contents/MacOS/SevenFour
+          ARCHS=$(lipo -archs "$BIN")
+          echo "Architectures: $ARCHS"
+          for arch in arm64 x86_64; do
+            case " $ARCHS " in
+              *" $arch "*) ;;
+              *) echo "::error::$arch is missing from the app binary"; exit 1 ;;
+            esac
+          done
+
+      - name: Archive app
+        run: ditto -c -k --keepParent build/Build/Products/Release/SevenFour.app SevenFour.zip
+
+      # The zip is uploaded as is (archive: false), so the artifact downloads
+      # as SevenFour.zip instead of a zip inside a zip.
+      - name: Upload app
+        uses: actions/upload-artifact@v7
+        with:
+          path: SevenFour.zip
+          archive: false
+          retention-days: 7
