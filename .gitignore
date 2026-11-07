@@ -57,3 +57,11 @@ Backups.backupdb
 .MobileBackups.trash
 MobileBackups.trash
 tmbootpicker.efi
+
+# Xcode / XcodeGen
+# The Xcode project is generated from project.yml by XcodeGen.
+SevenFour.xcodeproj/
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate

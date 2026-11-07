@@ -656,7 +656,7 @@ static SFMainWindowController* activeController_;
 	// Font
 	NSFont* font = [NSFont fontWithName: [defaults stringForKey: @"ThreadListFontFamily"]
 								   size: [defaults floatForKey: @"ThreadListFontSize"]];
-	[threadListView setRowHeight: [font defaultLineHeightForFont] + 2];
+	[threadListView setRowHeight: [[[[NSLayoutManager alloc] init] autorelease] defaultLineHeightForFont: font] + 2];
 
 	for (i = 0; i < [columns count]; i++) {
 		column = [columns objectAtIndex: i];

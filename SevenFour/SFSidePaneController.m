@@ -132,7 +132,7 @@
 	// Font
 	NSFont* font = [NSFont fontWithName: [defaults stringForKey: @"BoardTreeFontFamily"]
 								   size: [defaults floatForKey: @"BoardTreeFontSize"]];
-	[outlineView setRowHeight: [font defaultLineHeightForFont] + 2];
+	[outlineView setRowHeight: [[[[NSLayoutManager alloc] init] autorelease] defaultLineHeightForFont: font] + 2];
 	[[[outlineView tableColumnWithIdentifier: @"title"] dataCell] setFont: font];
 
 	if ([defaults boolForKey: @"ShowSearchFieldInSidePane"]) {

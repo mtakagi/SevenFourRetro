@@ -431,5 +431,6 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
 					 fromRect: srcRect 
 					 fraction: fraction];
 	}
+	return YES;
 }
 @end

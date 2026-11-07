@@ -70,7 +70,7 @@ static NSMutableSet* opendURLs_ = nil;
     rect.origin = [[self window] frame].origin;
 	
 	NSSize screenSize = [[[self window] screen] frame].size;
-	screenSize.height -= [NSMenuView menuBarHeight];
+	screenSize.height -= [[NSApp mainMenu] menuBarHeight];
 	if (rect.origin.x + rect.size.width > screenSize.width) {
 		rect.origin.x = screenSize.width - rect.size.width;
 	}
