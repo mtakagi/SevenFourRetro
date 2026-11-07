@@ -381,8 +381,12 @@ static NSString* alertMessageFromHTML(NSString* html)
    didFailWithError: (NSError*) error
 {
     [connection release];
-    [receivedData_ dealloc];
+    [receivedData_ release];
     receivedData_ = nil;
+
+    // Allow the next -update; otherwise every later update is ignored and
+    // whoever waits for it (e.g. a loading thread view) waits forever.
+    isUpdating_ = NO;
 
     [[NSNotificationCenter defaultCenter]
         postNotificationName: Ch2ThreadConnectionDidFailNotification

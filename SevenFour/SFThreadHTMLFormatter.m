@@ -236,7 +236,9 @@ static OGRegularExpression* NUMBER_REPLY_PATTERN = nil;
         [result addObject: [NSNumber numberWithInt: i]];
     }
     
-    if ([[result objectAtIndex: 0] intValue] != 0) {
+    // A thread with no messages (e.g. the download failed and there is no
+    // cache) has nothing to show.
+    if ([result count] > 0 && [[result objectAtIndex: 0] intValue] != 0) {
         [result insertObject: [NSNumber numberWithInt: 0]
                      atIndex: 0];
     }
