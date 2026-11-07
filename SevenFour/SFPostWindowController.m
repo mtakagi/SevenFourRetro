@@ -47,7 +47,14 @@ static NSMutableSet* mails_ = NULL;
 		[alert autorelease];
 		
 		[alert setAlertStyle: NSInformationalAlertStyle];
-		[alert setInformativeText: [thread_ alertMessage]];
+
+		// alertMessage is nil when the request failed or the response had no
+		// recognizable message; NSAlert raises on a nil informative text.
+		NSString* message = [thread_ alertMessage];
+		if ([message length] == 0) {
+			message = NSLocalizedString(@"Failed to post.", @"");
+		}
+		[alert setInformativeText: message];
 		
 		[alert addButtonWithTitle: @"OK"];
 		[alert addButtonWithTitle: @"Cancel"];
