@@ -20,8 +20,8 @@ static NSString* POST_ERROR;
 static NSString* POST_WAIT;
 static NSString* POST_COOKIE;
 
+// Hidden fields from the last confirmation page, sent back with the next post.
 static NSMutableDictionary* sharedFormData_ = NULL;
-static NSString* sharedPon_ = NULL;
 
 @implementation NSString (PercentEscape)
 #include <ctype.h>
@@ -61,7 +61,7 @@ static NSString* sharedPon_ = NULL;
         }
     }
     
-    return result;
+    return [result autorelease];
 }
 
 - (NSString*) URLencode
@@ -82,7 +82,7 @@ static NSString* sharedPon_ = NULL;
         }
     }
     
-    return result;
+    return [result autorelease];
 }
 @end
 
@@ -99,38 +99,82 @@ static NSString* sharedPon_ = NULL;
 }
 @end
 
-static NSString* stripQuote(NSString* s)
+static NSString* unescapeHTML(NSString* s)
 {
-    static NSCharacterSet* quoteSet = NULL;
-    if (! quoteSet) {
-        quoteSet = [NSCharacterSet characterSetWithCharactersInString: @"\"'"];
-        [quoteSet retain];
+    NSMutableString* result = [NSMutableString stringWithString: s];
+    NSArray* entities = [NSArray arrayWithObjects:
+        @"&lt;", @"<", @"&gt;", @">", @"&quot;", @"\"", @"&#39;", @"'", @"&amp;", @"&", nil];
+    int i;
+    for (i = 0; i < [entities count]; i += 2) {
+        [result replaceOccurrencesOfString: [entities objectAtIndex: i]
+                                withString: [entities objectAtIndex: i + 1]
+                                   options: 0
+                                     range: NSMakeRange(0, [result length])];
     }
-    
-    if ([s rangeOfCharacterFromSet: quoteSet].location == 0) {
-        return [s substringWithRange: NSMakeRange(1, [s length] - 2)];
-    } else {
-        return s;
-    }
+    return result;
 }
 
+// Attributes of one HTML tag, with lowercase names. Values may be quoted with
+// " or ', or unquoted, and are HTML-unescaped.
 static NSDictionary* parseHTMLAttributes(NSString* s)
 {
-    static OGRegularExpression* pattern = NULL;
+    static NSRegularExpression* pattern = nil;
     if (! pattern) {
-        pattern = [OGRegularExpression regularExpressionWithString:@"([^ ]+)=([^ >]+)"];
-        [pattern retain];
+        pattern = [[NSRegularExpression alloc]
+            initWithPattern: @"([A-Za-z_:][-A-Za-z0-9_:.]*)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s\"'>]+))"
+                    options: 0
+                      error: NULL];
     }
 
-    NSMutableDictionary* result = [[NSMutableDictionary alloc] init];
-    
-	NSEnumerator* enumerator = [pattern matchEnumeratorInString: s];
-	OGRegularExpressionMatch* match;
-	while ((match = [enumerator nextObject]) != nil) {
-        [result setValue: stripQuote([match substringAtIndex: 2])
-                  forKey: [[match substringAtIndex: 1] lowercaseString]];
-	}	
-    return [result autorelease];
+    NSMutableDictionary* result = [NSMutableDictionary dictionary];
+    NSArray* matches = [pattern matchesInString: s options: 0 range: NSMakeRange(0, [s length])];
+    NSEnumerator* enumerator = [matches objectEnumerator];
+    NSTextCheckingResult* match;
+    while ((match = [enumerator nextObject]) != nil) {
+        NSString* name = [[s substringWithRange: [match rangeAtIndex: 1]] lowercaseString];
+        NSString* value = @"";
+        int i;
+        for (i = 2; i <= 4; i++) {
+            if ([match rangeAtIndex: i].location != NSNotFound) {
+                value = [s substringWithRange: [match rangeAtIndex: i]];
+                break;
+            }
+        }
+        [result setObject: unescapeHTML(value) forKey: name];
+    }
+    return result;
+}
+
+// Plain text of an HTML page, for showing a server message we can't parse.
+static NSString* textFromHTML(NSString* html)
+{
+    NSMutableString* text = [NSMutableString stringWithString: html];
+    NSString* patterns[] = { @"<!--.*?-->", @"<(?:script|style)[^>]*>.*?</(?:script|style)>", @"<br\\s*/?>", @"<[^>]*>" };
+    NSString* replacements[] = { @"", @"", @"\n", @"" };
+    int i;
+    for (i = 0; i < 4; i++) {
+        NSRegularExpression* regex = [NSRegularExpression
+            regularExpressionWithPattern: patterns[i]
+                                 options: NSRegularExpressionCaseInsensitive | NSRegularExpressionDotMatchesLineSeparators
+                                   error: NULL];
+        [regex replaceMatchesInString: text options: 0 range: NSMakeRange(0, [text length]) withTemplate: replacements[i]];
+    }
+
+    // Collapse blank lines and surrounding spaces.
+    NSMutableArray* lines = [NSMutableArray array];
+    NSEnumerator* enumerator = [[unescapeHTML(text) componentsSeparatedByString: @"\n"] objectEnumerator];
+    NSString* line;
+    while ((line = [enumerator nextObject]) != nil) {
+        line = [line stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if ([line length] > 0) {
+            [lines addObject: line];
+        }
+    }
+    NSString* result = [lines componentsJoinedByString: @"\n"];
+    if ([result length] > 500) {
+        result = [[result substringToIndex: 500] stringByAppendingString: @"…"];
+    }
+    return result;
 }
 
 static NSString* alertMessageFromHTML(NSString* html)
@@ -150,7 +194,8 @@ static NSString* alertMessageFromHTML(NSString* html)
         return [p2 replaceAllMatchesInString: [match substringAtIndex: 1] 
                                   withString: @"\n"];
     } else {
-        return nil;
+        NSString* text = textFromHTML(html);
+        return ([text length] > 0) ? text : nil;
     }
 }
     
@@ -434,7 +479,7 @@ static NSString* alertMessageFromHTML(NSString* html)
     OGRegularExpression* regex;
     OGRegularExpressionMatch* match;
     
-    regex = [OGRegularExpression regularExpressionWithString:@"<!-- 2ch_X:[a-z]+ -->"];
+    regex = [OGRegularExpression regularExpressionWithString:@"<!-- 2ch_X:([a-z]+) -->"];
     NSString* name = nil;    
     if (match = [regex matchInString: content]) {
         name = [match substringAtIndex: 1];
@@ -482,6 +527,12 @@ static NSString* alertMessageFromHTML(NSString* html)
 
 - (Ch2ThreadPostResult) resultFromHTML: (NSData*) data
 {
+    if ([data length] == 0) {
+        [alertMessage_ release];
+        alertMessage_ = nil;
+        return Ch2ThreadPostClientError;
+    }
+
     TECConverter* converter;
     converter = [[TECConverter alloc] initWithEncoding: NSShiftJISStringEncoding];
 
@@ -500,32 +551,31 @@ static NSString* alertMessageFromHTML(NSString* html)
     
     [alertMessage_ release];
 
-	OGRegularExpression* pattern = [OGRegularExpression regularExpressionWithString:@"<input .+?>"];
+	// Keep the hidden fields of a confirmation page; bbs.cgi expects them back.
+	// The fields this class sets itself are left out.
+	static NSSet* ownFields = nil;
+	if (! ownFields) {
+		ownFields = [[NSSet alloc] initWithObjects:
+			@"bbs", @"key", @"time", @"submit", @"FROM", @"mail", @"MESSAGE", nil];
+	}
+	OGRegularExpression* pattern = [OGRegularExpression regularExpressionWithString: @"<input\\s[^>]*>"
+	                                                                        options: OgreIgnoreCaseOption];
 	NSEnumerator* enumerator = [pattern matchEnumeratorInString: content];
 	OGRegularExpressionMatch* match;
 	while ((match = [enumerator nextObject]) != nil) {
-        NSDictionary* attrs = parseHTMLAttributes([match substringAtIndex: 0]);
-        [sharedFormData_ setValue: [attrs valueForKey: @"value"]
-                           forKey: [attrs valueForKey: @"name"]];
+        NSDictionary* attrs = parseHTMLAttributes([match matchedString]);
+        NSString* type = [[attrs objectForKey: @"type"] lowercaseString];
+        NSString* name = [attrs objectForKey: @"name"];
+        if (! [type isEqualToString: @"hidden"] || [name length] == 0 || [ownFields containsObject: name]) {
+            continue;
+        }
+        NSString* value = [attrs objectForKey: @"value"];
+        [sharedFormData_ setObject: (value ? value : @"") forKey: name];
 	}	
 
     alertMessage_ = [alertMessageFromHTML(content) retain];
     
     return result;
-}
-
-- (NSString*) ponFromCookie: (NSString*) cookie
-{
-	OGRegularExpression* pattern;
-	OGRegularExpressionMatch* match;
-	
-	pattern = [OGRegularExpression regularExpressionWithString: @"PON=(.+?);"];		
-	match = [pattern matchInString: cookie];
-	if (match) {
-		return [match substringAtIndex: 1];
-	} else {
-		return nil;
-	}
 }
 
 - (Ch2ThreadPostResult) postWithName: (NSString*) name
@@ -535,13 +585,21 @@ static NSString* alertMessageFromHTML(NSString* html)
     NSURL* url = [NSURL URLWithString: @"/test/bbs.cgi"
                         relativeToURL: [self URLOfBoard]];
 
-    NSMutableDictionary* dict = [NSMutableDictionary dictionaryWithDictionary: sharedFormData_];
+    // Hidden fields are sent percent-encoded in Shift_JIS like the rest.
+    NSMutableDictionary* dict = [NSMutableDictionary dictionary];
+    NSEnumerator* enumerator = [sharedFormData_ keyEnumerator];
+    id key;
+    while ((key = [enumerator nextObject])) {
+        [dict setObject: [[sharedFormData_ objectForKey: key] URLencode]
+                 forKey: [key URLencode]];
+    }
     
-    [dict setValue: [self boardName]
+    [dict setValue: [[self boardName] URLencode]
             forKey: @"bbs"];
     [dict setValue: [NSString stringWithFormat: @"%d", number_] 
             forKey: @"key"];
-    [dict setValue: [NSString stringWithFormat: @"%d", 1]
+    // bbs.cgi rejects a form whose time is far from now.
+    [dict setValue: [NSString stringWithFormat: @"%lld", (long long) [[NSDate date] timeIntervalSince1970]]
             forKey: @"time"];
     [dict setValue: @"%8F%91%82%AB%8D%9E%82%DE" 
             forKey: @"submit"];
@@ -555,8 +613,7 @@ static NSString* alertMessageFromHTML(NSString* html)
     
     NSMutableString* string = [NSMutableString string]; 
     
-    NSEnumerator* enumerator = [dict keyEnumerator];
-    id key;
+    enumerator = [dict keyEnumerator];
     while ((key = [enumerator nextObject])) {
         [string appendString: key];
         [string appendString: @"="];
@@ -567,39 +624,28 @@ static NSString* alertMessageFromHTML(NSString* html)
 
     NSData* data = [string dataUsingEncoding: NSASCIIStringEncoding];
     
+    // Cookies are left to the shared cookie storage, so the ones bbs.cgi sets
+    // on its confirmation page are sent back with the next post.
     NSMutableURLRequest* req;
-    req = [NSMutableURLRequest requestWithURL: url];
+    req = [NSMutableURLRequest requestWithURL: url
+                                  cachePolicy: NSURLRequestReloadIgnoringCacheData
+                              timeoutInterval: 60.0];
     [req setHTTPMethod: @"POST"];
+    [req setHTTPShouldHandleCookies: YES];
     [req setValue: userAgent_ forHTTPHeaderField: @"User-Agent"];
     [req setValue: [[self URLOfBoard] absoluteString] forHTTPHeaderField: @"Referer"];
-    [req setValue: [NSString stringWithFormat:@"%d", [data length]] forHTTPHeaderField: @"Content-Length"];
+    [req setValue: @"application/x-www-form-urlencoded" forHTTPHeaderField: @"Content-Type"];
     [req setHTTPBody: data];
 
-	// Cookie
-    NSString* cookie;
-    cookie = [NSString stringWithFormat:
-		@"NAME=%@; MAIL=%@; PON=%@; expires=%@; path=/",
-		name, mail, 
-		sharedPon_,
-		[[NSDate dateWithTimeIntervalSinceNow: 60] descriptionInRFC1123]];    
-    [req setValue: cookie forHTTPHeaderField: @"Cookie"];
-    
-    NSHTTPURLResponse* resp;
-    NSError* error;
+    NSHTTPURLResponse* resp = nil;
+    NSError* error = nil;
     data = [NSURLConnection sendSynchronousRequest: req
 								 returningResponse: &resp
 											 error: &error];
-	[data writeToFile: @"/tmp/sevenfour-post.html"
-           atomically: YES];
 	Ch2ThreadPostResult	result = [self resultFromHTML: data];
-	
-	if (result == Ch2ThreadPostCheckCookie) {
-		if (sharedPon_) {
-			[sharedPon_ release];
-		}
-		
-		sharedPon_ = [self ponFromCookie: [[resp allHeaderFields] objectForKey: @"Set-Cookie"]];
-		[sharedPon_ retain];
+	if (! data && error) {
+		[alertMessage_ release];
+		alertMessage_ = [[error localizedDescription] retain];
 	}
 	
     return result;

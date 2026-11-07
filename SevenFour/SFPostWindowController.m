@@ -30,6 +30,52 @@ static NSMutableSet* mails_ = NULL;
 }
 
 #pragma mark Action
+// Sends the post. When bbs.cgi answers with anything but success (a
+// confirmation page, a warning or an error), its message is shown; OK sends
+// the post again, Cancel leaves the window open so the text can be edited.
+- (void) sendPost
+{
+    Ch2ThreadPostResult result;
+    result = [thread_ postWithName: [nameBox stringValue]
+                              mail: [mailBox stringValue]
+                              body: [bodyView string]];
+
+    if (result == Ch2ThreadPostSuccess) {
+        [indicator stopAnimation: nil];
+        [thread_ update];
+        [self close];
+        return;
+    }
+
+    NSAlert* alert = [[[NSAlert alloc] init] autorelease];
+    [alert setAlertStyle: NSAlertStyleInformational];
+
+    BOOL needsConfirmation = (result == Ch2ThreadPostCheck ||
+                              result == Ch2ThreadPostCheckCookie ||
+                              result == Ch2ThreadPostWarning);
+    [alert setMessageText: needsConfirmation
+        ? NSLocalizedString(@"Confirm posting.", @"")
+        : NSLocalizedString(@"Failed to post.", @"")];
+
+    // alertMessage is nil when the request failed or the response was empty;
+    // NSAlert raises on a nil informative text.
+    NSString* message = [thread_ alertMessage];
+    [alert setInformativeText: message ? message : @""];
+
+    [alert addButtonWithTitle: @"OK"];
+    [alert addButtonWithTitle: @"Cancel"];
+
+    [alert beginSheetModalForWindow: [self window]
+                  completionHandler: ^(NSModalResponse returnCode) {
+        if (returnCode == NSAlertFirstButtonReturn) {
+            // Post again once this sheet is gone, so another alert can be shown.
+            [self performSelector: @selector(sendPost) withObject: nil afterDelay: 0];
+        } else {
+            [indicator stopAnimation: nil];
+        }
+    }];
+}
+
 - (IBAction) post: (id) sender
 {    
     [indicator startAnimation: sender];
@@ -37,36 +83,7 @@ static NSMutableSet* mails_ = NULL;
 	[names_ addObject: [nameBox stringValue]];
 	[mails_ addObject: [mailBox stringValue]];
     
-    Ch2ThreadPostResult result;
-    result = [thread_ postWithName: [nameBox stringValue]
-							  mail: [mailBox stringValue]
-							  body: [bodyView string]];	
-
-	if (result != Ch2ThreadPostSuccess) {
-		NSAlert* alert = [[NSAlert alloc] init];
-		[alert autorelease];
-		
-		[alert setAlertStyle: NSInformationalAlertStyle];
-
-		// alertMessage is nil when the request failed or the response had no
-		// recognizable message; NSAlert raises on a nil informative text.
-		NSString* message = [thread_ alertMessage];
-		if ([message length] == 0) {
-			message = NSLocalizedString(@"Failed to post.", @"");
-		}
-		[alert setInformativeText: message];
-		
-		[alert addButtonWithTitle: @"OK"];
-		[alert addButtonWithTitle: @"Cancel"];
-		
-		[alert beginSheetModalForWindow: [self window]
-						  modalDelegate: self
-						 didEndSelector: @selector(alertSheetDidEnd: returnCode: contextInfo:)
-							contextInfo: nil];
-	} else {
-		[thread_ update];
-        [self close];
-    }
+    [self sendPost];
 }
 
 #pragma mark Override
@@ -111,22 +128,6 @@ static NSMutableSet* mails_ = NULL;
     [thread_ release];
     
     [super dealloc];
-}
-
-// NSApplication
-- (void) alertSheetDidEnd: (NSAlert*) alert
-			   returnCode: (int) returnCode
-			  contextInfo: (void*) contextInfo
-{
-	if (returnCode == NSAlertFirstButtonReturn) {
-		Ch2ThreadPostResult result;
-		result = [thread_ postWithName: [nameBox stringValue]
-								  mail: [mailBox stringValue]
-								  body: [bodyView string]];
-		[thread_ update];
-		[self close];
-	}
-	[indicator stopAnimation: nil];
 }
 
 - (void) windowWillClose: (NSNotification*) notification
