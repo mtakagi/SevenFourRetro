@@ -19,13 +19,14 @@ extern NSString* SFThreadDidFinishUpdatingNotification;
 	NSCalendarDate* visitedTime_;
 	BOOL isNew_;
 	BOOL cacheDeleted_;
-	// A post is being sent. Kept here rather than only in thread_, which is
-	// replaced when the log is deleted (#26).
-	BOOL posting_;
     
     NSMutableDictionary* idCounts_;
 	
     Ch2Thread* thread_;
+    // Sends the posts. Separate from thread_, which is replaced when the log
+    // is deleted, so a post being sent, its message and its confirmation
+    // page are never lost with it (#26).
+    Ch2Thread* poster_;
 }
 
 - (id) initWithNumber: (int) number

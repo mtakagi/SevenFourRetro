@@ -529,35 +529,21 @@ static QuickLiteDatabase* database_ = nil;
 				 body: (NSString*) body
 	completionHandler: (Ch2ThreadPostHandler) handler
 {
-	// One post at a time, even if thread_ is replaced meanwhile (log deleted).
-	if (posting_) {
-		return NO;
+	if (poster_ == nil) {
+		poster_ = [[Ch2Thread alloc] initWithNumber: number_ board: board_];
+		[poster_ setUserAgent: SEVENFOUR_USER_AGENT];
 	}
-	[self prepareCh2Thread];
 
-	handler = [[handler copy] autorelease];
-    BOOL started = [thread_ postWithName: name
-                                    mail: mail
-                                    body: body
-                       completionHandler: ^(Ch2ThreadPostResult result) {
-		posting_ = NO;
-		if (handler) {
-			handler(result);
-		}
-	}];
-	if (started) {
-		posting_ = YES;
-	}
-	return started;
+	// poster_ refuses a second post while one is being sent.
+    return [poster_ postWithName: name
+                            mail: mail
+                            body: body
+               completionHandler: handler];
 }
 
 - (NSString*) alertMessage
 {
-	if (thread_) {
-		return [thread_ alertMessage];
-	} else {
-		return nil;
-	}
+	return [poster_ alertMessage];
 }
 
 #pragma mark Override
@@ -580,7 +566,7 @@ static QuickLiteDatabase* database_ = nil;
 	
 	visitedTime_ = nil;
 	cacheDeleted_ = NO;
-	posting_ = NO;
+	poster_ = nil;
 	
 	offline_ = NO;
     
@@ -597,6 +583,7 @@ static QuickLiteDatabase* database_ = nil;
 	[self retain];
 	[thread_ setDelegate: nil];
     [thread_ release];
+    [poster_ release];
 	
     [board_ release];
     [subject_ release];
