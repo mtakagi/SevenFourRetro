@@ -50,6 +50,7 @@ typedef enum {
     SFTestDatServerError,     // 500 with an HTML page
     SFTestDatSlow,            // like SFTestDatNormal, after 1 second
     SFTestDatWrongRange,      // 206 whose Content-Range doesn't continue the cache
+    SFTestDatNoContentRange,  // 206 without a Content-Range
 } SFTestDatMode;
 
 @interface Ch2ThreadUpdateTests : XCTestCase {
@@ -112,6 +113,8 @@ typedef enum {
                                                   headers: [NSDictionary dictionaryWithObject: @"bytes 0-99/200"
                                                                                        forKey: @"Content-Range"]
                                                      body: rest];
+        case SFTestDatNoContentRange:
+            return [SFTestHTTPResponse responseWithStatus: 206 headers: nil body: rest];
         case SFTestDatSlow:
             [NSThread sleepForTimeInterval: 1.0];
             break;
@@ -332,6 +335,17 @@ typedef enum {
     Ch2Thread* thread = [self threadWithCachedDat];
     mode_ = SFTestDatWrongRange;
     XCTAssertEqualObjects([self updateAndWait: thread], Ch2ThreadDidFinishUpdatingNotification);
+    XCTAssertEqual([thread count], 4);
+    XCTAssertEqualObjects([NSData dataWithContentsOfFile: [self cachePath]], dat_);
+}
+
+- (void) testRangeWithoutContentRangeIsNotAppended
+{
+    // Where the reply starts can't be checked, so it may not continue the cache.
+    Ch2Thread* thread = [self threadWithCachedDat];
+    mode_ = SFTestDatNoContentRange;
+    XCTAssertEqualObjects([self updateAndWait: thread], Ch2ThreadDidFinishUpdatingNotification);
+    XCTAssertFalse([thread isUpdating]);
     XCTAssertEqual([thread count], 4);
     XCTAssertEqualObjects([NSData dataWithContentsOfFile: [self cachePath]], dat_);
 }

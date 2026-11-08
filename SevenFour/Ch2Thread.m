@@ -554,8 +554,10 @@ static NSData* completeLines(NSData* data)
         break;
     case 206:
         // Appending to the cache is right only if the reply continues it.
-        if (startOfContentRange(http) != NSNotFound
-            && startOfContentRange(http) != requestedOffset_) {
+        // A 206 must say where it starts (RFC 9110); without a readable
+        // Content-Range it can't be shown to, so it isn't appended either.
+        if (requestedOffset_ == 0
+            || startOfContentRange(http) != requestedOffset_) {
             NSLog(@"Ch2Thread: Content-Range %@ does not continue the cache (%lu bytes).",
                   [[http allHeaderFields] objectForKey: @"Content-Range"],
                   (unsigned long) requestedOffset_);

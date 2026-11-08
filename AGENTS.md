@@ -128,7 +128,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - デリゲート付きの `NSURLSession` はデリゲートを retain します。終わったら `finishTasksAndInvalidate`、取り消すときは `invalidateAndCancel` を呼んでください。呼ばないとリークします。
   - 板一覧の取得に失敗したとき（接続できない、HTTP エラー、板が 1 つもないページ）は、保存済みの `BoardTree.plist` を上書きしません。初回起動ではスマート板だけを先に表示し、届いたら左ペインを更新します（`SFBoardTreeDidChangeNotification`）。
   - DAT の差分取得では、キャッシュを壊さないように次のようにしています（`Ch2ThreadUpdateTests`）。
-    - 206 は、`Content-Range` の開始位置がキャッシュの長さと一致するときだけ追記します。
+    - 206 は、`Content-Range` の開始位置がキャッシュの長さと一致するときだけ追記します。`Content-Range` がない・読めない 206 も追記しません。
     - Range を付けたのに 200（DAT 全体）が返ったら、追記せずにキャッシュを置き換えます。
     - 応答の最後が改行で終わっていなければ、最後の行は捨てます（次の Range でその行から取り直す）。
     - 接続が途中で切れた、416、HTTP エラーのときは、キャッシュを変えません。
