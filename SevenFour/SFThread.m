@@ -529,12 +529,26 @@ static QuickLiteDatabase* database_ = nil;
 				 body: (NSString*) body
 	completionHandler: (Ch2ThreadPostHandler) handler
 {
+	// One post at a time, even if thread_ is replaced meanwhile (log deleted).
+	if (posting_) {
+		return NO;
+	}
 	[self prepareCh2Thread];
 
-    return [thread_ postWithName: name
-                            mail: mail
-                            body: body
-               completionHandler: handler];
+	handler = [[handler copy] autorelease];
+    BOOL started = [thread_ postWithName: name
+                                    mail: mail
+                                    body: body
+                       completionHandler: ^(Ch2ThreadPostResult result) {
+		posting_ = NO;
+		if (handler) {
+			handler(result);
+		}
+	}];
+	if (started) {
+		posting_ = YES;
+	}
+	return started;
 }
 
 - (NSString*) alertMessage
@@ -566,6 +580,7 @@ static QuickLiteDatabase* database_ = nil;
 	
 	visitedTime_ = nil;
 	cacheDeleted_ = NO;
+	posting_ = NO;
 	
 	offline_ = NO;
     

@@ -13,6 +13,9 @@
     NSButton* postButton_;
     BOOL sending_;
     BOOL closed_;
+    // Name, mail and body of the post being sent, to tell whether they were
+    // edited while it was sent.
+    NSString* sentPost_;
 }
 
 - (void) setThread: (SFThread*) th;

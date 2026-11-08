@@ -134,7 +134,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
     - 接続が途中で切れた、416、HTTP エラーのときは、キャッシュを変えません。
     - 更新中の `-update` は無視します（同じスレを複数のタブで開いている場合）。ログを削除したときは、更新中の応答でキャッシュを書き戻しません（`SFThread`）。
 - **書き込み（`Ch2Thread -postWithName:mail:body:completionHandler:`）の注意**（#7、#26）
-  - 非同期で送り、結果は完了ハンドラ（メインスレッド）で受け取ります。送信中の書き込みは拒否され（戻り値 NO）、二重に送られません。`SFPostWindowController` は送信中「書き込む」ボタンを無効にします。
+  - 非同期で送り、結果は完了ハンドラ（メインスレッド）で受け取ります。送信中の書き込みは拒否され（戻り値 NO）、二重に送られません。`SFThread` も同じ判定をします（ログを削除すると `Ch2Thread` が作り直されるため）。`SFPostWindowController` は送信中「書き込む」ボタンを無効にし、送信中に内容を変えた場合は、成功してもウインドウを閉じません。
   - POST は自動で再送しません。送ったあとに応答が途中で切れた・タイムアウトした場合は `Ch2ThreadPostUnknown`（書き込めたか分からない）になり、ウインドウは再送のボタンを出さずにスレッドを更新します。接続できなかった場合（送っていない）は `Ch2ThreadPostClientError` です。
   - 書き込みごとに新しい `NSURLSession` を使います（使い回した接続で失敗した POST を CFNetwork が送り直さないように）。Cookie は共有のストレージを使います。
   - Cookie は自前で `Cookie` ヘッダを組み立てず、共有の `NSHTTPCookieStorage` に任せます。bbs.cgi が書き込み確認ページで発行した Cookie を次の書き込みで送り返す必要があるためです。

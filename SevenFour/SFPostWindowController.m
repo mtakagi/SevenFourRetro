@@ -35,6 +35,12 @@ static NSMutableSet* mails_ = NULL;
 // answers with anything but success (a confirmation page, a warning or an
 // error), its message is shown; OK sends the post again, Cancel leaves the
 // window open so the text can be edited.
+- (NSString*) currentPost
+{
+    return [NSString stringWithFormat: @"%@\n%@\n%@",
+        [nameBox stringValue], [mailBox stringValue], [bodyView string]];
+}
+
 - (void) sendPost
 {
     if (sending_) {
@@ -52,6 +58,8 @@ static NSMutableSet* mails_ = NULL;
         return;
     }
     sending_ = YES;
+    [sentPost_ release];
+    sentPost_ = [[self currentPost] retain];
     [postButton_ setEnabled: NO];
     [indicator startAnimation: nil];
 }
@@ -64,7 +72,17 @@ static NSMutableSet* mails_ = NULL;
 
     if (result == Ch2ThreadPostSuccess) {
         [thread_ update];
-        [self close];
+        if (closed_ || [[self currentPost] isEqualToString: sentPost_]) {
+            [self close];
+            return;
+        }
+        // Edited while sending: the edits were not posted. Keep them.
+        NSAlert* alert = [[[NSAlert alloc] init] autorelease];
+        [alert setAlertStyle: NSAlertStyleInformational];
+        [alert setMessageText: NSLocalizedString(@"Posted.", @"")];
+        [alert setInformativeText: NSLocalizedString(@"What was changed while posting has not been posted.", @"")];
+        [alert addButtonWithTitle: @"OK"];
+        [alert beginSheetModalForWindow: [self window] completionHandler: nil];
         return;
     }
     if (result == Ch2ThreadPostUnknown) {
@@ -173,6 +191,7 @@ static NSMutableSet* mails_ = NULL;
 - (void) dealloc
 {
     [thread_ release];
+    [sentPost_ release];
     
     [super dealloc];
 }
