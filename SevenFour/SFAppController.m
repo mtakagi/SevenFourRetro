@@ -61,12 +61,8 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
 	NSMutableDictionary* dict = [NSMutableDictionary dictionary];
 	
 	// UI
-	// Show the board list as the left pane of the main window (3-pane) by
-	// default. The drawer is still available from the preferences.
-	[dict setObject: [NSNumber numberWithBool: NO]
-			 forKey: @"UseDrawer"];
-	[dict setObject: [NSNumber numberWithInt: 0]
-			 forKey: @"DrawerEdge"];
+	// The board list is the left pane of the main window (3-pane). The
+	// drawer it could also be shown in (UseDrawer, DrawerEdge) is gone (#29).
 	[dict setObject: [NSNumber numberWithBool: NO]
 			 forKey: @"TwoPane"];
 	[dict setObject: [NSNumber numberWithBool: YES]

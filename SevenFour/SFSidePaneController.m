@@ -2,11 +2,57 @@
 
 #import "SFSidePaneController.h"
 
+@interface SFSidePaneController (Private)
+- (void) setUpView;
+@end
+
 @implementation SFSidePaneController
 - (void) setAdditionalSearchField: (NSSearchField*) field
 {
     [field setTarget: self];
     [field setAction: @selector(search:)];
+}
+
+// The view SidePane.nib held (#29), made in code with the same layout: the
+// search field along the top and the outline filling the rest.
+- (void) makeView
+{
+    baseView = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 200, 300)];
+
+    searchField = [[[NSSearchField alloc] initWithFrame: NSMakeRect(2, 279, 196, 19)] autorelease];
+    [searchField setControlSize: NSControlSizeSmall];
+    [searchField setFont: [NSFont systemFontOfSize: [NSFont smallSystemFontSize]]];
+    [searchField setAutoresizingMask: NSViewWidthSizable | NSViewMinYMargin];
+    [searchField setTarget: self];
+    [searchField setAction: @selector(search:)];
+    [baseView addSubview: searchField];
+
+    NSScrollView* scroll = [[[NSScrollView alloc] initWithFrame: NSMakeRect(0, 0, 200, 277)] autorelease];
+    [scroll setHasVerticalScroller: YES];
+    [scroll setHasHorizontalScroller: YES];
+    [scroll setAutohidesScrollers: YES];
+    [scroll setAutoresizingMask: NSViewWidthSizable | NSViewHeightSizable];
+
+    outlineView = [[[NSOutlineView alloc] initWithFrame: [[scroll contentView] bounds]] autorelease];
+    NSTableColumn* column = [[[NSTableColumn alloc] initWithIdentifier: @"title"] autorelease];
+    [column setWidth: 168];
+    [column setMinWidth: 16];
+    [column setMaxWidth: 1000];
+    [column setResizingMask: NSTableColumnAutoresizingMask | NSTableColumnUserResizingMask];
+    [column setEditable: NO];
+    [outlineView addTableColumn: column];
+    [outlineView setOutlineTableColumn: column];
+    [outlineView setHeaderView: nil];
+    [outlineView setIntercellSpacing: NSMakeSize(3, 2)];
+    [outlineView setIndentationPerLevel: 13];
+    [outlineView setAutoresizesOutlineColumn: YES];
+    [outlineView setAllowsMultipleSelection: YES];
+    [outlineView setColumnAutoresizingStyle: NSTableViewLastColumnOnlyAutoresizingStyle];
+    [outlineView setFocusRingType: NSFocusRingTypeNone];
+    [outlineView setTarget: self];
+    [outlineView setAction: @selector(clicked:)];
+    [scroll setDocumentView: outlineView];
+    [baseView addSubview: scroll];
 }
 
 - (id) init
@@ -17,8 +63,20 @@
 	}
 	
     delegate_ = nil;
+    [self makeView];
+    [self setUpView];
 	
     return self;
+}
+
+- (void) dealloc
+{
+    [outlineView setDataSource: nil];
+    [outlineView setDelegate: nil];
+    [baseView release];
+    [keyword_ release];
+    [delegate_ release];
+    [super dealloc];
 }
 
 
@@ -118,9 +176,7 @@
     item = [outlineView itemAtRow: [outlineView selectedRow]];    
 }
 
-#pragma mark Override
-
-- (void) awakeFromNib
+- (void) setUpView
 {
     [outlineView setDataSource: self];
     [outlineView setDelegate: self];

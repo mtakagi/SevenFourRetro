@@ -5,7 +5,7 @@
 
 // The thread tabs: a tab bar over the views shown in the tabs (#27).
 // It manages any NSView<SFTabContent> and knows nothing of WebKit. The name
-// is kept because MainWindow.nib refers to the class (#29).
+// is from when the tabs were WebViews.
 @interface TabbedWebView : NSView {
 	NSObject* delegate_;
 	int selected_;
