@@ -32,6 +32,7 @@ Tests/                   XCTest の単体テスト（ターゲット SevenFourTe
 Tools/
   fakebbs.py             手動確認用の偽の掲示板サーバー
   run-app-with-test-home.sh  一時的な HOME でアプリを起動するスクリプト
+docs/                    記録・設計の文書（例: retro-reading-flow.md は読み進め操作の記録。#22）
 .github/workflows/       CI（ビルドとテスト）
 ```
 
@@ -101,8 +102,11 @@ python3 Tools/fakebbs.py --port 8765          # 偽の掲示板（別のター�
 Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリを起動
 ```
 
-- `Tools/fakebbs.py`: 板一覧・subject.txt・DAT（Range 対応）と、5ch 風の書き込み確認（確認ページ、Cookie、hidden 値、`?guid=ON`）を返します。本文に `ERRORTEST` を含めるとエラーページを返し、`LOSTTEST` を含めると書き込みを受け付けたうえで応答を途中で切ります（結果が分からない場合の確認用）。`--delay 4` で GET の応答を遅らせると更新アイコンの回転を、`--post-delay 3` で書き込みの応答を遅らせると送信中の書き込みウインドウを確認できます。
-- `Tools/run-app-with-test-home.sh`: `HOME` と `CFFIXED_USER_HOME` を一時ディレクトリにしてアプリを起動します。DB・キャッシュ・Cookie・設定はすべてそこに保存されます。
+- `Tools/fakebbs.py`: 板一覧・subject.txt・DAT（Range 対応）と、5ch 風の書き込み確認（確認ページ、Cookie、hidden 値、`?guid=ON`）を返します。板は「テスト板」（2 スレ）のほか、たくさんのスレを読み進める確認用の「読み進め板」（40 スレ、300 レスのスレを含む）と「雑談板」（30 スレ）があります（`docs/retro-reading-flow.md`）。受け付けた書き込みはそのスレの最後に追加されるので、新着の確認にも使えます（メモリ上だけで、起動し直すと元に戻ります）。本文に `ERRORTEST` を含めるとエラーページを返し、`LOSTTEST` を含めると書き込みを受け付けたうえで応答を途中で切ります（結果が分からない場合の確認用）。`--delay 4` で GET の応答を遅らせると更新アイコンの回転を、`--post-delay 3` で書き込みの応答を遅らせると送信中の書き込みウインドウを確認できます。
+- `Tools/run-app-with-test-home.sh`: `HOME` と `CFFIXED_USER_HOME` を一時ディレクトリにしてアプリを起動します。DB・キャッシュ・Cookie はそこに保存されます。
+  - **設定（NSUserDefaults）は HOME を変えても分けられません**（cfprefsd が本当のホームの `~/Library/Preferences` に保存します）。そのため、スクリプトはアプリをコピーしてバンドル ID を `com.xrea.s74.quux.SevenFour.test` に変えて起動し、終了時にその設定を削除します。普段の設定（`com.xrea.s74.quux.SevenFour`）には触れません。
+  - アプリを操作するときは、このバンドル ID を使ってください（例: `osascript -e 'tell application id "com.xrea.s74.quux.SevenFour.test" to activate'`）。
+  - アプリを直接起動して試さないでください（普段の設定に書き込まれます）。
 - 確認する手順:
   1. 起動して、左ペインに板一覧が出る
   2. 「テスト板」を選ぶと、スレッド一覧が出る（読み込み中は「板更新」のアイコンが回る）

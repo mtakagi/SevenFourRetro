@@ -5,13 +5,19 @@ Serves synthetic data only, and never forwards anything to a real board.
 
   python3 Tools/fakebbs.py [--port 8765] [--delay SECONDS] [--post-delay SECONDS] [--log FILE]
 
-  /bbsmenu.html                 board list with one board, /test/
-  /test/subject.txt             two threads
-  /test/dat/<number>.dat        DAT (Range requests answered with 206)
-  /test/bbs.cgi                 posting, 5ch style:
+  /bbsmenu.html                 board list: テスト板 (/test/) and, for reading
+                                many threads (#22), 読み進め板 (/yomu/) and
+                                雑談板 (/zatsu/)
+  /<board>/subject.txt          the board's threads
+  /<board>/dat/<number>.dat     DAT (Range requests answered with 206)
+  /<board>/bbs.cgi              posting, 5ch style:
       the first post gets a confirmation page that sets a cookie and has
       its own form (action ?guid=ON, the same time, submit value, hidden
       values); only that form sent back unchanged succeeds.
+      An accepted post is added to the end of its thread (and moves the
+      thread to the top of the list unless mail is sage), so updating
+      the thread shows it as a new message. Nothing is saved: restarting
+      the server starts again from the same data.
       A body containing ERRORTEST gets an error page.
       A body containing LOSTTEST is accepted, but the reply breaks off
       (the client can't tell whether the post was written).
@@ -26,18 +32,73 @@ import http.server
 import time
 import urllib.parse
 
-MENU = """<HTML><BODY>
-<br><br><B>テスト</B><br>
-<A HREF=http://{host}/test/>テスト板</A><br>
-</BODY></HTML>
+# The boards, in the order of the board list. Every thread is made from
+# fixed rules, so the data is the same on every run and for anyone who
+# compares another client against it (mtakagi/SevenFour#112).
+CATEGORY = "テスト"
+BOARD_TITLES = {"test": "テスト板", "yomu": "読み進め板", "zatsu": "雑談板"}
+MENU_TEMPLATE = """<HTML><BODY>
+<br><br><B>{category}</B><br>
+{links}</BODY></HTML>
 """
-SUBJECT = "1234567890.dat<>テストスレ (2)\n1234567891.dat<>新しいスレ (5)\n"
-DAT = {
-    "1234567890": "名無しさん<>sage<>2026/11/08(日) 00:00:00 ID:abc<> 1 つめ <>テストスレ\n"
-                  "名無しさん<>sage<>2026/11/08(日) 00:00:01 ID:def<> 2 つめ <>\n",
-    "1234567891": "".join(f"名無しさん<>sage<>2026/11/08(日) 00:00:0{i} ID:ghi<> {i} つめ <>{'新しいスレ' if i == 1 else ''}\n"
-                          for i in range(1, 6)),
-}
+
+
+def message(name, mail, day, second, ident, body, title=""):
+    time_text = f"2026/11/{day:02d}(日) 00:{second // 60:02d}:{second % 60:02d}"
+    return f"{name}<>{mail}<>{time_text} ID:{ident}<> {body} <>{title}\n"
+
+
+def make_thread(board, index, count):
+    """A thread of count messages; every tenth one answers the one before."""
+    title = f"{BOARD_TITLES[board]}のスレ {index:02d}"
+    if board == "yomu" and index == 1:
+        title = "長いスレ（300 レス）"
+    lines = []
+    for n in range(1, count + 1):
+        body = f"{title} の {n} つめ"
+        if n % 10 == 0:
+            body = f"&gt;&gt;{n - 1}<br>{body}"
+        lines.append(message("名無しさん", "sage", 8, n, f"id{index:02d}{n % 7}", body, title if n == 1 else ""))
+    return title, "".join(lines)
+
+
+def make_boards():
+    boards = {}
+    # テスト板: the two threads the smoke test and the docs use.
+    boards["test"] = [
+        ["1234567890", "テストスレ",
+         message("名無しさん", "sage", 8, 0, "abc", "1 つめ", "テストスレ")
+         + message("名無しさん", "sage", 8, 1, "def", "2 つめ")],
+        ["1234567891", "新しいスレ",
+         "".join(message("名無しさん", "sage", 8, i, "ghi", f"{i} つめ", "新しいスレ" if i == 1 else "")
+                 for i in range(1, 6))],
+    ]
+    # 読み進め板: 40 threads, more than a window shows, the first one long.
+    # 雑談板: 30 threads, to leave a board and come back.
+    for board, threads in (("yomu", 40), ("zatsu", 30)):
+        boards[board] = []
+        for i in range(1, threads + 1):
+            count = 300 if (board == "yomu" and i == 1) else 3 + (i * 7) % 25
+            title, dat = make_thread(board, i, count)
+            number = str((1767225600 if board == "yomu" else 1767312000) + i * 60)
+            boards[board].append([number, title, dat])
+    return boards
+
+
+BOARDS = make_boards()
+
+
+def subject_txt(board):
+    return "".join(f"{number}.dat<>{title} ({dat.count(chr(10))})\n" for number, title, dat in BOARDS[board])
+
+
+def find_thread(board, number):
+    for thread in BOARDS.get(board, []):
+        if thread[0] == number:
+            return thread
+    return None
+
+
 OK = "<html><head><title>書きこみました。</title></head><body>書きこみが終わりました。</body></html>"
 ERROR = ("<html><head><title>ＥＲＲＯＲ！</title></head><body><ul><br></ul>"
          "<b>ERROR: テスト用のエラーです<br>もう一度どうぞ</b><form method=POST></form></body></html>")
@@ -74,13 +135,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         time.sleep(self.server.delay)
         path = urllib.parse.urlparse(self.path).path
         if path == "/bbsmenu.html":
-            return self.send(200, sjis(MENU.format(host=self.headers.get("Host"))), "text/html; charset=Shift_JIS")
-        if path == "/test/subject.txt":
-            return self.send(200, sjis(SUBJECT))
-        if path.startswith("/test/dat/") and path.endswith(".dat"):
-            data = sjis(DAT.get(path[len("/test/dat/"):-4], ""))
-            if not data:
+            host = self.headers.get("Host")
+            links = "".join(f"<A HREF=http://{host}/{board}/>{title}</A><br>\n"
+                            for board, title in BOARD_TITLES.items())
+            return self.send(200, sjis(MENU_TEMPLATE.format(category=CATEGORY, links=links)),
+                             "text/html; charset=Shift_JIS")
+        parts = path.strip("/").split("/")
+        if len(parts) == 2 and parts[0] in BOARDS and parts[1] == "subject.txt":
+            return self.send(200, sjis(subject_txt(parts[0])))
+        if len(parts) == 3 and parts[0] in BOARDS and parts[1] == "dat" and parts[2].endswith(".dat"):
+            thread = find_thread(parts[0], parts[2][:-4])
+            if not thread:
                 return self.send(404, b"")
+            data = sjis(thread[2])
             rng = self.headers.get("Range", "")
             if rng.startswith("bytes="):
                 start = int(rng[6:].rstrip("-") or 0)
@@ -90,6 +157,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                  headers=[("Content-Range", f"bytes {start}-{len(data) - 1}/{len(data)}")])
             return self.send(200, data)
         self.send(404, b"")
+
+    def add_message(self, form):
+        """Adds an accepted post to its thread, as bbs.cgi would."""
+        board = BOARDS.get(form.get("bbs", ""))
+        thread = find_thread(form.get("bbs", ""), form.get("key", ""))
+        if not thread:
+            return
+        n = thread[2].count("\n") + 1
+        text = html.escape(form.get("MESSAGE", "")).replace("\n", "<br>")
+        thread[2] += message(form.get("FROM") or "名無しさん", form.get("mail", ""), 8, n, "post", text)
+        if form.get("mail") != "sage":
+            board.remove(thread)
+            board.insert(0, thread)
 
     def do_POST(self):
         time.sleep(self.server.post_delay)
@@ -116,6 +196,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     and all(form.get(k) == last.get(k) for k in ("time", "FROM", "mail", "MESSAGE")))
         if accepted:
             self.log_message("post accepted: %r", form.get("MESSAGE"))
+            self.add_message(form)
             return self.send(200, sjis(OK), page)
         Handler.confirmed = form
         hidden = "".join(f'<input type=hidden name="{k}" value="{html.escape(form.get(k, ""))}">\n'
