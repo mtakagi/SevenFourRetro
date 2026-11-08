@@ -6,12 +6,14 @@ extern NSString* Ch2BoardParsingNotification;
 extern NSString* Ch2BoardDidFinishLoadingNotification;
 extern NSString* Ch2BoardDidFinishParsingNotification;
 
-@interface Ch2Board : NSObject {
+@interface Ch2Board : NSObject <NSURLSessionDataDelegate> {
     NSURL* url_;
     NSMutableArray* subjects_;
     NSMutableData* receivedData_;
+    NSURLSession* session_;
+    BOOL failedStatus_;
     
-    int contentLength_;
+    long long contentLength_;
     float estimatedProgress_;
     NSString* userAgent_;
 	
@@ -31,7 +33,12 @@ extern NSString* Ch2BoardDidFinishParsingNotification;
 - (NSString*) userAgent;
 - (void) setUserAgent: (NSString*) name;
 
+// Starts loading subject.txt in the background. When it is over (loaded,
+// failed or an HTTP error), Ch2BoardDidFinishParsingNotification is posted
+// on the main thread.
 - (void) update;
+// Stops the current update without posting any notification.
+- (void) cancel;
 - (BOOL) isUpdating;
 
 - (void) setDelegate: (id) delagate;

@@ -4,3 +4,4 @@
 "Board" = "板";
 "Failed to post." = "書き込みに失敗しました。";
 "Confirm posting." = "書き込みの確認";
+"Failed to update the board list." = "板一覧を更新できませんでした。";

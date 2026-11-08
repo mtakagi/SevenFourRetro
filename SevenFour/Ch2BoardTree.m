@@ -4,37 +4,20 @@
 #import <OgreKit/OgreKit.h>
 
 @implementation Ch2BoardTree
-+ (NSString*) stringWithContentsOfURL: (NSURL*) url
+static NSError* Ch2BoardTreeError(NSString* description)
 {
-    NSMutableURLRequest* req;
-    req = [NSMutableURLRequest requestWithURL: url
-                                  cachePolicy: NSURLRequestReloadIgnoringCacheData
-                              timeoutInterval: 60.0];
-    // [req setValue: userAgent_ forHTTPHeaderField: @"User-Agent"];
-    [req setValue: @"gzip" forHTTPHeaderField: @"Accept-Encoding"];
-    
-    NSURLResponse* resp;
-    NSError* error;
-    NSData* data = [NSURLConnection sendSynchronousRequest: req
-                                         returningResponse: &resp
-                                                     error: &error];
-    
-    TECConverter* converter;
-    converter = [[TECConverter alloc] initWithEncoding: NSShiftJISStringEncoding];
-    
-    NSString* result = [converter convertToString: data];
-    [converter release];
-    
-    return result;
+    return [NSError errorWithDomain: NSURLErrorDomain
+                               code: NSURLErrorBadServerResponse
+                           userInfo: [NSDictionary dictionaryWithObject: description
+                                                                 forKey: NSLocalizedDescriptionKey]];
 }
-
 
 - (id) initWithURL: (NSURL*) url
 {
     self = [super init];
     
     root_ = [[NSMutableDictionary alloc] init];
-    [root_ setObject: [[NSMutableArray alloc] init] forKey: @"children"];
+    [root_ setObject: [NSMutableArray array] forKey: @"children"];
     
     url_ = [url retain];
     
@@ -43,6 +26,7 @@
 
 - (void) dealloc
 {
+    [self cancel];
     [root_ release];
     [url_ release];
     [super dealloc];
@@ -65,7 +49,7 @@
     if (match = [regex matchInString: line]) {
         [result setObject: [match substringAtIndex: 1] 
                    forKey: @"title"];
-        [result setObject: [[NSMutableArray alloc] init]
+        [result setObject: [NSMutableArray array]
                    forKey: @"children"];
         
         return result;
@@ -85,12 +69,10 @@
     return nil;
 }
 
-- (void) update
-{        
-    [[root_ objectForKey: @"children"] removeAllObjects];
-    
-    NSString* source = [Ch2BoardTree stringWithContentsOfURL: url_];
-
+// The categories in bbsmenu.html, each with its boards in "children".
+- (NSMutableArray*) parse: (NSString*) source
+{
+    NSMutableArray* children = [NSMutableArray array];
     NSRange range;
     range.location = 0;
     NSDictionary* category = nil;
@@ -112,10 +94,87 @@
         if ([item objectForKey: @"url"]) {
             [[category objectForKey: @"children"] addObject: item];
         } else if (item) {
-            [[root_ objectForKey: @"children"] addObject: item];
+            [children addObject: item];
             category = item;
         }
-    }    
+    }
+    
+    return children;
+}
+
+- (BOOL) isUpdating
+{
+    return task_ != nil;
+}
+
+- (void) cancel
+{
+    [task_ cancel];
+    [task_ release];
+    task_ = nil;
+}
+
+- (void) updateWithCompletionHandler: (void (^)(NSError* error)) handler
+{
+    [self cancel];
+    
+    NSMutableURLRequest* req;
+    req = [NSMutableURLRequest requestWithURL: url_
+                                  cachePolicy: NSURLRequestReloadIgnoringCacheData
+                              timeoutInterval: 60.0];
+    [req setValue: @"gzip" forHTTPHeaderField: @"Accept-Encoding"];
+    
+    handler = [[handler copy] autorelease];
+    __block NSURLSessionDataTask* task = nil;
+    task = [[NSURLSession sharedSession] dataTaskWithRequest: req
+                                           completionHandler: ^(NSData* data, NSURLResponse* resp, NSError* error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // Cancelled, or replaced by a newer update.
+            if (task != task_) {
+                return;
+            }
+            [task_ release];
+            task_ = nil;
+            
+            NSError* failure = error;
+            NSInteger status = [resp isKindOfClass: [NSHTTPURLResponse class]]
+                ? [(NSHTTPURLResponse*) resp statusCode] : 200;
+            if (! failure && status != 200) {
+                failure = Ch2BoardTreeError([NSHTTPURLResponse localizedStringForStatusCode: status]);
+            }
+            
+            NSString* source = nil;
+            if (! failure) {
+                TECConverter* converter;
+                converter = [[TECConverter alloc] initWithEncoding: NSShiftJISStringEncoding];
+                source = [converter convertToString: data];
+                [converter release];
+                if (source == nil) {
+                    failure = Ch2BoardTreeError(@"Failed to convert the board list from Shift_JIS.");
+                }
+            }
+            
+            NSMutableArray* children = nil;
+            if (! failure) {
+                children = [self parse: source];
+                // Not a board list (a login or error page, say).
+                if ([children count] == 0) {
+                    failure = Ch2BoardTreeError(@"The board list has no boards.");
+                }
+            }
+            
+            if (! failure) {
+                [root_ setObject: children forKey: @"children"];
+            } else {
+                NSLog(@"Ch2BoardTree: %@", failure);
+            }
+            if (handler) {
+                handler(failure);
+            }
+        });
+    }];
+    task_ = [task retain];
+    [task resume];
 }
 
 @end

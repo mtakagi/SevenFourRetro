@@ -86,7 +86,7 @@ xcodebuild -project SevenFour.xcodeproj -scheme SevenFour -destination 'platform
 - **合成データ**は `Tests/Fixtures/`（UTF-8）にあります。`SFTestFixtureShiftJIS()` で Shift_JIS にして使います。実在の掲示板・利用者のデータは入れないでください。内容は `Tests/Fixtures/README.md` を参照してください。
 - 主な対象:
   - `Ch2DatParserTests`: DAT
-  - `Ch2BoardTests`: subject.txt、板一覧
+  - `Ch2BoardTests`: subject.txt、板一覧（非同期の取得、失敗、取り消し）
   - `Ch2ThreadUpdateTests`: DAT の新規取得・差分取得・416・失敗
   - `Ch2ThreadPostTests`: 書き込み（確認ページの再送、エラー、Shift_JIS）
   - `QuickLiteTests`: SQLite シム
@@ -122,6 +122,11 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - `.nib` ディレクトリ内のファイルだけを変更しても Xcode は再コンパイルしません。`touch SevenFour/Japanese.lproj/<Name>.nib` してからビルドしてください。
 - IBAction やツールバーのアクション内で発生した Objective-C 例外は AppKit に握りつぶされ、ログにも出ません。「ボタンを押しても何も起きない」場合は、例外を疑って `@try`/`@catch` で一時的にログを出すか、lldb で `objc_exception_throw` にブレークポイントを置いて調べてください。
 - **スレッドとメインスレッド**（#9）: `SFThread` / `Ch2Thread` の更新・通知と WebView の操作はメインスレッドで行います。`SFURLProtocol` は CFNetwork のスレッドで動くので、スレの更新と HTML 生成はメインスレッドで行い、結果だけを読み込みを始めたスレッドで client に渡しています。旧 WebView（WebKitLegacy）をメインスレッド以外から触ると例外で終了します。
+- **通信（NSURLSession）**（#24）: 板一覧（`Ch2BoardTree`）・スレッド一覧（`Ch2Board`）・画像（`SFImageWindowController`）は `NSURLSession` で非同期に取得します。DAT と書き込み（`Ch2Thread`）はまだ `NSURLConnection` です（#25、#26）。
+  - 結果はメインスレッドで扱います（デリゲートのキューに `[NSOperationQueue mainQueue]` を指定するか、完了ハンドラから `dispatch_async(dispatch_get_main_queue(), ...)`）。
+  - 取り消したあとに届いた応答は捨てます（`-cancel`、セッションやタスクが今のものか確認する）。板を離れたとき（`SFNormalBoard` の解放）や画像ウインドウを閉じたときは取り消します。
+  - デリゲート付きの `NSURLSession` はデリゲートを retain します。終わったら `finishTasksAndInvalidate`、取り消すときは `invalidateAndCancel` を呼んでください。呼ばないとリークします。
+  - 板一覧の取得に失敗したとき（接続できない、HTTP エラー、板が 1 つもないページ）は、保存済みの `BoardTree.plist` を上書きしません。初回起動ではスマート板だけを先に表示し、届いたら左ペインを更新します（`SFBoardTreeDidChangeNotification`）。
 - **書き込み（`Ch2Thread -postWithName:mail:body:`）の注意**（#7）
   - Cookie は自前で `Cookie` ヘッダを組み立てず、共有の `NSHTTPCookieStorage` に任せます。bbs.cgi が書き込み確認ページで発行した Cookie を次の書き込みで送り返す必要があるためです。
   - 確認ページで OK を押したとき（同じ名前・メール・本文での再送）は、確認ページの `<form>`（`action`、hidden の値、送信ボタンの name/value）をブラウザと同じようにそのまま送ります（#12）。値は Shift_JIS で URL エンコードします。
