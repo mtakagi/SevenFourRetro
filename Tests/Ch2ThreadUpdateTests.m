@@ -94,8 +94,10 @@ typedef enum {
         case SFTestDatIgnoresRange:
             return [SFTestHTTPResponse responseWithStatus: 200 headers: nil body: all];
         case SFTestDatConnectionLost: {
-            NSDictionary* headers = [NSDictionary dictionaryWithObject:
-                [NSString stringWithFormat: @"%lu", (unsigned long) [rest length]] forKey: @"Content-Length"];
+            // A valid 206 (it continues the cache) that closes halfway.
+            NSMutableDictionary* headers = [NSMutableDictionary dictionaryWithDictionary: contentRange];
+            [headers setObject: [NSString stringWithFormat: @"%lu", (unsigned long) [rest length]]
+                        forKey: @"Content-Length"];
             return [SFTestHTTPResponse responseWithStatus: 206 headers: headers
                                                      body: [rest subdataWithRange: NSMakeRange(0, [rest length] / 2)]];
         }
