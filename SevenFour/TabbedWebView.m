@@ -19,6 +19,10 @@ static NSImage* TAB_CLOSE_ACTIVE = nil;
 static NSImage* TAB_CLOSE_INACTIVE = nil;
 
 @implementation TabbedWebView
+// Redraws the tabs, whose labels and spinners show each page's title and
+// progress. The title can be set after the last progress change, so the
+// tabs are redrawn when a load starts and finishes as well; otherwise a tab
+// could keep "Untitled" until something else redrew it (#45).
 - (void) estimateChanged: (NSNotification*) n
 {
     [self setNeedsDisplay: YES];
@@ -225,16 +229,25 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
 #endif
     
     NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
-    [center addObserver: self
-               selector: @selector(estimateChanged:)
-                   name: WebViewProgressEstimateChangedNotification 
-                 object: wv];
+    NSArray* names = [NSArray arrayWithObjects:
+        WebViewProgressStartedNotification,
+        WebViewProgressEstimateChangedNotification,
+        WebViewProgressFinishedNotification, nil];
+    NSEnumerator* e = [names objectEnumerator];
+    NSString* name;
+    while ((name = [e nextObject]) != nil) {
+        [center addObserver: self
+                   selector: @selector(estimateChanged:)
+                       name: name
+                     object: wv];
+    }
 	
 	[self setNeedsDisplay: YES];
 }
 
 - (void) removeWebView: (WebView*) view
 {
+	[[NSNotificationCenter defaultCenter] removeObserver: self name: nil object: view];
 	[view removeFromSuperview];
     [webViews_ removeObject: view];
     
