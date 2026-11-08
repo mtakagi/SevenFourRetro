@@ -540,7 +540,7 @@ static SFMainWindowController* activeController_;
 	}
 	
 	SFPostWindowController* wc;
-	wc = [[SFPostWindowController alloc] initWithWindowNibName: @"PostWindow"];
+	wc = [[SFPostWindowController alloc] init];
 	[[self document] addWindowController: wc];    
 	
 	[wc setThread: th];
