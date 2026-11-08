@@ -16,6 +16,8 @@ SevenFour は 2005〜2006 年頃に書かれた macOS 用 2ch ブラウザ（Coc
 ## ディレクトリ構成
 
 ```
+README.md                利用者向けの説明（#33）
+LICENSE.md               ライセンス（SevenFour 本体は著作権放棄。作者が別の部品の条件も記載）
 project.yml              XcodeGen のプロジェクト定義（Xcode プロジェクトはここから生成する）
 SevenFour/               アプリ本体のソースとリソース
   *.h / *.m              アプリのソース
