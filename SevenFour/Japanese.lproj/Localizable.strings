@@ -5,3 +5,5 @@
 "Failed to post." = "書き込みに失敗しました。";
 "Confirm posting." = "書き込みの確認";
 "Failed to update the board list." = "板一覧を更新できませんでした。";
+"Not sure whether the post was written." = "書き込めたかどうか分かりません。";
+"Check the updated thread before posting again." = "もう一度書き込む前に、更新したスレッドで書き込まれたかどうか確認してください。";

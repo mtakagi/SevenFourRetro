@@ -524,20 +524,17 @@ static QuickLiteDatabase* database_ = nil;
     return [attr objectForKey: NSFileModificationDate];
 }
 
-- (Ch2ThreadPostResult) postWithName: (NSString*) name
-								mail: (NSString*) mail
-								body: (NSString*) body
+- (BOOL) postWithName: (NSString*) name
+				 mail: (NSString*) mail
+				 body: (NSString*) body
+	completionHandler: (Ch2ThreadPostHandler) handler
 {
-	// NSLog(@"name = %@, mail = %@, body = %@", name, mail, body);
-
 	[self prepareCh2Thread];
 
-    Ch2ThreadPostResult result;
-    result = [thread_ postWithName: name
-                              mail: mail
-                              body: body];
-    
-    return result;
+    return [thread_ postWithName: name
+                            mail: mail
+                            body: body
+               completionHandler: handler];
 }
 
 - (NSString*) alertMessage

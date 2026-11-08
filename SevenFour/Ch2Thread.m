@@ -913,10 +913,51 @@ static NSData* formBody(NSArray* fields)
     return [[pairs componentsJoinedByString: @"&"] dataUsingEncoding: NSASCIIStringEncoding];
 }
 
-- (Ch2ThreadPostResult) postWithName: (NSString*) name
-                                mail: (NSString*) mail
-                                body: (NSString*) body
+- (BOOL) isPosting
 {
+    return isPosting_;
+}
+
+// YES when an error means the request never reached the server, so the post
+// was certainly not written. Any other error leaves the result unknown.
+static BOOL postWasNotSent(NSError* error)
+{
+    if (! [[error domain] isEqualToString: NSURLErrorDomain]) {
+        return NO;
+    }
+    switch ([error code]) {
+    case NSURLErrorBadURL:
+    case NSURLErrorUnsupportedURL:
+    case NSURLErrorCannotFindHost:
+    case NSURLErrorCannotConnectToHost:
+    case NSURLErrorDNSLookupFailed:
+    case NSURLErrorNotConnectedToInternet:
+    case NSURLErrorInternationalRoamingOff:
+    case NSURLErrorDataNotAllowed:
+    case NSURLErrorAppTransportSecurityRequiresSecureConnection:
+    case NSURLErrorSecureConnectionFailed:
+    case NSURLErrorServerCertificateHasBadDate:
+    case NSURLErrorServerCertificateUntrusted:
+    case NSURLErrorServerCertificateHasUnknownRoot:
+    case NSURLErrorServerCertificateNotYetValid:
+    case NSURLErrorClientCertificateRejected:
+    case NSURLErrorClientCertificateRequired:
+        return YES;
+    default:
+        return NO;
+    }
+}
+
+- (BOOL) postWithName: (NSString*) name
+                 mail: (NSString*) mail
+                 body: (NSString*) body
+    completionHandler: (Ch2ThreadPostHandler) handler
+{
+    // Pressing the button again, or a second window, must not send twice.
+    if (isPosting_) {
+        return NO;
+    }
+
     NSString* post = [NSString stringWithFormat: @"%@\n%@\n%@", name, mail, body];
     NSURL* url;
     NSURL* referer;
@@ -967,22 +1008,42 @@ static NSData* formBody(NSArray* fields)
     [req setValue: @"application/x-www-form-urlencoded" forHTTPHeaderField: @"Content-Type"];
     [req setHTTPBody: formBody(fields)];
 
-    NSHTTPURLResponse* resp = nil;
-    NSError* error = nil;
-    NSData* data = [NSURLConnection sendSynchronousRequest: req
-                                         returningResponse: &resp
-                                                     error: &error];
-    [self saveResponseForDebugging: data URL: [resp URL]];
+    // A session of its own for each post: the request goes out on a new
+    // connection, never on a reused one that CFNetwork might retry on
+    // behind our back (a POST must not be sent twice). The shared cookie
+    // storage is still used.
+    NSURLSession* session = [NSURLSession sessionWithConfiguration: [NSURLSessionConfiguration defaultSessionConfiguration]
+                                                          delegate: nil
+                                                     delegateQueue: [NSOperationQueue mainQueue]];
+    isPosting_ = YES;
+    handler = [[handler copy] autorelease];
+    // The block keeps self alive until the reply arrives.
+    NSURLSessionDataTask* task;
+    task = [session dataTaskWithRequest: req
+                      completionHandler: ^(NSData* data, NSURLResponse* response, NSError* error) {
+        isPosting_ = NO;
+        NSHTTPURLResponse* resp = (NSHTTPURLResponse*) response;
+        [self saveResponseForDebugging: data URL: [resp URL]];
 
-	Ch2ThreadPostResult	result = [self resultFromHTML: data
-	                                              URL: ([resp URL] ? [resp URL] : url)
-	                                             post: post];
-	if (! data && error) {
-		[alertMessage_ release];
-		alertMessage_ = [[error localizedDescription] retain];
-	}
-	
-    return result;
+        Ch2ThreadPostResult result;
+        if (error) {
+            // Nothing to read; forget any old confirmation page as well.
+            [self clearConfirmation];
+            [alertMessage_ release];
+            alertMessage_ = [[error localizedDescription] retain];
+            result = postWasNotSent(error) ? Ch2ThreadPostClientError : Ch2ThreadPostUnknown;
+        } else {
+            result = [self resultFromHTML: data
+                                      URL: ([resp URL] ? [resp URL] : url)
+                                     post: post];
+        }
+        if (handler) {
+            handler(result);
+        }
+    }];
+    [task resume];
+    [session finishTasksAndInvalidate];
+    return YES;
 }
 
 - (id) initWithNumber: (int) number
@@ -1012,6 +1073,7 @@ static NSData* formBody(NSArray* fields)
     delegate_ = nil;
     alertMessage_ = nil;
     isUpdating_ = NO;
+    isPosting_ = NO;
     userAgent_ = nil;
     confirmAction_ = nil;
     confirmPage_ = nil;

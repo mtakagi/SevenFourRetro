@@ -65,9 +65,11 @@ extern NSString* SFThreadDidFinishUpdatingNotification;
 - (int) countOfID: (NSString*) key;
 
 //
-- (Ch2ThreadPostResult) postWithName: (NSString*) name
-								mail: (NSString*) mail
-								body: (NSString*) body;
+// See -[Ch2Thread postWithName:mail:body:completionHandler:].
+- (BOOL) postWithName: (NSString*) name
+				 mail: (NSString*) mail
+				 body: (NSString*) body
+	completionHandler: (Ch2ThreadPostHandler) handler;
 - (NSString*) alertMessage;
 
 - (BOOL) isEqualToThread: (SFThread*) th;

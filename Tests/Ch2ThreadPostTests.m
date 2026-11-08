@@ -54,6 +54,20 @@ static NSString* const ERROR_PAGE =
         if (SFTestContains([form objectForKey: @"MESSAGE"], @"ERRORTEST")) {
             return [SFTestHTTPResponse responseWithStatus: 200 headers: html body: SFTestShiftJIS(ERROR_PAGE)];
         }
+        if (SFTestContains([form objectForKey: @"MESSAGE"], @"SLOWTEST")) {
+            [NSThread sleepForTimeInterval: 1.0];
+            return [SFTestHTTPResponse responseWithStatus: 200 headers: html
+                                                     body: SFTestShiftJIS(@"<html><!-- 2ch_X:true --><body>ok</body></html>")];
+        }
+        if (SFTestContains([form objectForKey: @"MESSAGE"], @"LOSTTEST")) {
+            // The post arrived, but the reply breaks off: the client can't
+            // tell whether it was written.
+            NSData* page = SFTestShiftJIS(OK_PAGE);
+            NSMutableDictionary* headers = [NSMutableDictionary dictionaryWithDictionary: html];
+            [headers setObject: [NSString stringWithFormat: @"%lu", (unsigned long) [page length] * 2]
+                        forKey: @"Content-Length"];
+            return [SFTestHTTPResponse responseWithStatus: 200 headers: headers body: page];
+        }
         if (SFTestContains([form objectForKey: @"MESSAGE"], @"COMMENTTEST")) {
             return [SFTestHTTPResponse responseWithStatus: 200 headers: html
                                                      body: SFTestShiftJIS(@"<html><!-- 2ch_X:true --><body>ok</body></html>")];
@@ -101,6 +115,41 @@ static NSString* const ERROR_PAGE =
     return thread;
 }
 
+// Sends a post and waits for its result, which must arrive on the main thread.
+- (Ch2ThreadPostResult) post: (Ch2Thread*) thread
+                        name: (NSString*) name
+                        mail: (NSString*) mail
+                        body: (NSString*) body
+{
+    __block BOOL finished = NO;
+    __block Ch2ThreadPostResult result = Ch2ThreadPostClientError;
+    BOOL started = [thread postWithName: name mail: mail body: body completionHandler: ^(Ch2ThreadPostResult r) {
+        XCTAssertTrue([NSThread isMainThread]);
+        result = r;
+        finished = YES;
+    }];
+    XCTAssertTrue(started);
+    // Sending runs in the background.
+    XCTAssertFalse(finished);
+    XCTAssertTrue([thread isPosting]);
+    XCTAssertTrue(SFTestWaitFor(10, ^BOOL { return finished; }));
+    XCTAssertFalse([thread isPosting]);
+    return result;
+}
+
+- (NSUInteger) postCount
+{
+    NSUInteger n = 0;
+    NSEnumerator* e = [[server_ requests] objectEnumerator];
+    SFTestHTTPRequest* r;
+    while ((r = [e nextObject]) != nil) {
+        if ([[r method] isEqualToString: @"POST"]) {
+            n++;
+        }
+    }
+    return n;
+}
+
 - (NSDictionary*) lastForm
 {
     return [[[server_ requests] lastObject] formFields];
@@ -109,7 +158,7 @@ static NSString* const ERROR_PAGE =
 - (void) testFirstPostSendsTheForm
 {
     Ch2Thread* thread = [self thread];
-    Ch2ThreadPostResult result = [thread postWithName: @"名無し" mail: @"sage" body: @"本文です"];
+    Ch2ThreadPostResult result = [self post: thread name: @"名無し" mail: @"sage" body: @"本文です"];
     XCTAssertEqual(result, Ch2ThreadPostCheckCookie);
 
     SFTestHTTPRequest* request = [[server_ requests] lastObject];
@@ -137,11 +186,11 @@ static NSString* const ERROR_PAGE =
 {
     Ch2Thread* thread = [self thread];
     NSString* body = @"it's \"q\" <b> & 😀 (´・ω・`)\n2 行目";
-    XCTAssertEqual([thread postWithName: @"名無し" mail: @"sage" body: body], Ch2ThreadPostCheckCookie);
+    XCTAssertEqual([self post: thread name: @"名無し" mail: @"sage" body: body], Ch2ThreadPostCheckCookie);
     NSDictionary* first = [self lastForm];
 
     // OK in the confirmation dialog: the same post again.
-    XCTAssertEqual([thread postWithName: @"名無し" mail: @"sage" body: body], Ch2ThreadPostSuccess);
+    XCTAssertEqual([self post: thread name: @"名無し" mail: @"sage" body: body], Ch2ThreadPostSuccess);
 
     SFTestHTTPRequest* request = [[server_ requests] lastObject];
     XCTAssertEqualObjects([request path], @"/test/bbs.cgi?guid=ON");
@@ -159,10 +208,10 @@ static NSString* const ERROR_PAGE =
 - (void) testEditedPostIsBuiltAgain
 {
     Ch2Thread* thread = [self thread];
-    XCTAssertEqual([thread postWithName: @"名無し" mail: @"sage" body: @"最初の本文"], Ch2ThreadPostCheckCookie);
+    XCTAssertEqual([self post: thread name: @"名無し" mail: @"sage" body: @"最初の本文"], Ch2ThreadPostCheckCookie);
 
     // Cancel in the dialog, edit the text and post: not the old form.
-    [thread postWithName: @"名無し" mail: @"sage" body: @"直した本文"];
+    [self post: thread name: @"名無し" mail: @"sage" body: @"直した本文"];
     SFTestHTTPRequest* request = [[server_ requests] lastObject];
     XCTAssertEqualObjects([request path], @"/test/bbs.cgi");
     XCTAssertEqualObjects([[request formFields] objectForKey: @"MESSAGE"], @"直した本文");
@@ -172,22 +221,51 @@ static NSString* const ERROR_PAGE =
 - (void) testErrorPageShowsItsMessage
 {
     Ch2Thread* thread = [self thread];
-    XCTAssertEqual([thread postWithName: @"" mail: @"" body: @"ERRORTEST"], Ch2ThreadPostError);
+    XCTAssertEqual([self post: thread name: @"" mail: @"" body: @"ERRORTEST"], Ch2ThreadPostError);
     XCTAssertEqualObjects([thread alertMessage], @"ERROR: テスト用のエラーです\nもう一度どうぞ");
 }
 
 - (void) testResultCommentMeansSuccess
 {
     Ch2Thread* thread = [self thread];
-    XCTAssertEqual([thread postWithName: @"" mail: @"" body: @"COMMENTTEST"], Ch2ThreadPostSuccess);
+    XCTAssertEqual([self post: thread name: @"" mail: @"" body: @"COMMENTTEST"], Ch2ThreadPostSuccess);
 }
 
 - (void) testUnreachableServerReportsTheError
 {
     Ch2Thread* thread = [[[Ch2Thread alloc] initWithNumber: 1
                                                      board: [NSURL URLWithString: @"http://127.0.0.1:9/test/"]] autorelease];
-    XCTAssertEqual([thread postWithName: @"" mail: @"" body: @"本文"], Ch2ThreadPostClientError);
+    XCTAssertEqual([self post: thread name: @"" mail: @"" body: @"本文"], Ch2ThreadPostClientError);
     XCTAssertTrue([[thread alertMessage] length] > 0);
+}
+
+- (void) testSecondPostWhileSendingIsRefused
+{
+    // The button pressed twice, or two windows for the same thread.
+    Ch2Thread* thread = [self thread];
+    __block int finished = 0;
+    XCTAssertTrue([thread postWithName: @"" mail: @"" body: @"SLOWTEST"
+                     completionHandler: ^(Ch2ThreadPostResult r) { finished++; }]);
+    XCTAssertFalse([thread postWithName: @"" mail: @"" body: @"SLOWTEST"
+                      completionHandler: ^(Ch2ThreadPostResult r) { finished += 100; }]);
+    XCTAssertTrue(SFTestWaitFor(10, ^BOOL { return finished > 0; }));
+    SFTestWaitFor(0.5, ^BOOL { return finished > 1; });
+    XCTAssertEqual(finished, 1);
+    XCTAssertEqual([self postCount], (NSUInteger) 1);
+
+    // Once the first is done, the next post goes out.
+    XCTAssertEqual([self post: thread name: @"" mail: @"" body: @"COMMENTTEST"], Ch2ThreadPostSuccess);
+    XCTAssertEqual([self postCount], (NSUInteger) 2);
+}
+
+- (void) testLostReplyIsUnknownAndNotSentAgain
+{
+    Ch2Thread* thread = [self thread];
+    XCTAssertEqual([self post: thread name: @"" mail: @"" body: @"LOSTTEST"], Ch2ThreadPostUnknown);
+    XCTAssertTrue([[thread alertMessage] length] > 0);
+    // Give a hidden retry time to show up: the post went out once.
+    SFTestWaitFor(1, ^BOOL { return [self postCount] > 1; });
+    XCTAssertEqual([self postCount], (NSUInteger) 1);
 }
 
 - (void) testURLencodeUsesShiftJIS

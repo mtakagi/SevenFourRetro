@@ -30,25 +30,73 @@ static NSMutableSet* mails_ = NULL;
 }
 
 #pragma mark Action
-// Sends the post. When bbs.cgi answers with anything but success (a
-// confirmation page, a warning or an error), its message is shown; OK sends
-// the post again, Cancel leaves the window open so the text can be edited.
+// Sends the post in the background; the window stays usable meanwhile, but
+// the post button is disabled so the post can't be sent twice. When bbs.cgi
+// answers with anything but success (a confirmation page, a warning or an
+// error), its message is shown; OK sends the post again, Cancel leaves the
+// window open so the text can be edited.
 - (void) sendPost
 {
-    Ch2ThreadPostResult result;
-    result = [thread_ postWithName: [nameBox stringValue]
-                              mail: [mailBox stringValue]
-                              body: [bodyView string]];
+    if (sending_) {
+        return;
+    }
+    BOOL started = [thread_ postWithName: [nameBox stringValue]
+                                    mail: [mailBox stringValue]
+                                    body: [bodyView string]
+                       completionHandler: ^(Ch2ThreadPostResult result) {
+        [self finishPost: result];
+    }];
+    if (! started) {
+        // Another window of this thread is sending a post.
+        NSBeep();
+        return;
+    }
+    sending_ = YES;
+    [postButton_ setEnabled: NO];
+    [indicator startAnimation: nil];
+}
+
+- (void) finishPost: (Ch2ThreadPostResult) result
+{
+    sending_ = NO;
+    [postButton_ setEnabled: YES];
+    [indicator stopAnimation: nil];
 
     if (result == Ch2ThreadPostSuccess) {
-        [indicator stopAnimation: nil];
         [thread_ update];
         [self close];
+        return;
+    }
+    if (result == Ch2ThreadPostUnknown) {
+        // The new message, if it was written, shows up in the thread.
+        [thread_ update];
+    }
+    // Closed while sending: no window to show the result in. Ch2Thread
+    // still keeps a confirmation page, so posting the same text again later
+    // sends that page's form, as OK in the dialog would.
+    if (closed_) {
         return;
     }
 
     NSAlert* alert = [[[NSAlert alloc] init] autorelease];
     [alert setAlertStyle: NSAlertStyleInformational];
+
+    // alertMessage is nil when the response was empty; NSAlert raises on a
+    // nil informative text.
+    NSString* message = [thread_ alertMessage];
+    if (! message) {
+        message = @"";
+    }
+
+    if (result == Ch2ThreadPostUnknown) {
+        // It may have been written: no button sends it again.
+        [alert setMessageText: NSLocalizedString(@"Not sure whether the post was written.", @"")];
+        [alert setInformativeText: [NSString stringWithFormat: @"%@\n\n%@",
+            NSLocalizedString(@"Check the updated thread before posting again.", @""), message]];
+        [alert addButtonWithTitle: @"OK"];
+        [alert beginSheetModalForWindow: [self window] completionHandler: nil];
+        return;
+    }
 
     BOOL needsConfirmation = (result == Ch2ThreadPostCheck ||
                               result == Ch2ThreadPostCheckCookie ||
@@ -56,11 +104,7 @@ static NSMutableSet* mails_ = NULL;
     [alert setMessageText: needsConfirmation
         ? NSLocalizedString(@"Confirm posting.", @"")
         : NSLocalizedString(@"Failed to post.", @"")];
-
-    // alertMessage is nil when the request failed or the response was empty;
-    // NSAlert raises on a nil informative text.
-    NSString* message = [thread_ alertMessage];
-    [alert setInformativeText: message ? message : @""];
+    [alert setInformativeText: message];
 
     [alert addButtonWithTitle: @"OK"];
     [alert addButtonWithTitle: @"Cancel"];
@@ -70,15 +114,18 @@ static NSMutableSet* mails_ = NULL;
         if (returnCode == NSAlertFirstButtonReturn) {
             // Post again once this sheet is gone, so another alert can be shown.
             [self performSelector: @selector(sendPost) withObject: nil afterDelay: 0];
-        } else {
-            [indicator stopAnimation: nil];
         }
     }];
 }
 
 - (IBAction) post: (id) sender
 {    
-    [indicator startAnimation: sender];
+    if (sending_) {
+        return;
+    }
+    if ([sender isKindOfClass: [NSButton class]]) {
+        postButton_ = sender;
+    }
 	
 	[names_ addObject: [nameBox stringValue]];
 	[mails_ addObject: [mailBox stringValue]];
@@ -132,6 +179,9 @@ static NSMutableSet* mails_ = NULL;
 
 - (void) windowWillClose: (NSNotification*) notification
 {
+	// A post being sent is still sent; its result is not shown (see -finishPost:).
+	closed_ = YES;
+	
 	NSDictionary* dict = [NSDictionary dictionaryWithObjectsAndKeys:
 		[names_ allObjects], @"Name", [mails_ allObjects], @"Mail", nil];
 	

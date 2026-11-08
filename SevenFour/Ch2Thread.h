@@ -8,8 +8,15 @@ typedef enum {
     Ch2ThreadPostError,
     Ch2ThreadPostCheck,
     Ch2ThreadPostCheckCookie,
+    // The post could not be sent (e.g. no connection to the server).
     Ch2ThreadPostClientError,
+    // The post was sent but no whole reply came back (timeout, connection
+    // lost): it may or may not have been written. Don't send it again
+    // without checking the thread.
+    Ch2ThreadPostUnknown,
 } Ch2ThreadPostResult;
+
+typedef void (^Ch2ThreadPostHandler)(Ch2ThreadPostResult result);
 
 extern NSString* Ch2ThreadLoadingNotification;
 extern NSString* Ch2ThreadDidFinishLoadingNotification;
@@ -39,6 +46,7 @@ extern NSString* Ch2ThreadConnectionDidFailNotification;
     NSString* alertMessage_;
     
     BOOL isUpdating_;
+    BOOL isPosting_;
     
     id delegate_;
     
@@ -96,9 +104,15 @@ extern NSString* Ch2ThreadConnectionDidFailNotification;
 - (void) cancel;
 - (BOOL) isUpdating;
 
-- (Ch2ThreadPostResult) postWithName: (NSString*) name
-                                mail: (NSString*) mail
-                                body: (NSString*) body;
+// Sends a post in the background and calls the handler on the main thread
+// with the result; -alertMessage then holds the server's message. Returns
+// NO, without sending or calling the handler, while another post of this
+// thread is being sent.
+- (BOOL) postWithName: (NSString*) name
+                 mail: (NSString*) mail
+                 body: (NSString*) body
+    completionHandler: (Ch2ThreadPostHandler) handler;
+- (BOOL) isPosting;
 - (NSString*) alertMessage;
 
 // Forgets the hidden fields kept from earlier confirmation pages.

@@ -100,13 +100,14 @@ python3 Tools/fakebbs.py --port 8765          # 偽の掲示板（別のター�
 Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリを起動
 ```
 
-- `Tools/fakebbs.py`: 板一覧・subject.txt・DAT（Range 対応）と、5ch 風の書き込み確認（確認ページ、Cookie、hidden 値、`?guid=ON`）を返します。本文に `ERRORTEST` を含めるとエラーページを返します。`--delay 4` で応答を遅らせると、更新アイコンの回転を確認できます。
+- `Tools/fakebbs.py`: 板一覧・subject.txt・DAT（Range 対応）と、5ch 風の書き込み確認（確認ページ、Cookie、hidden 値、`?guid=ON`）を返します。本文に `ERRORTEST` を含めるとエラーページを返し、`LOSTTEST` を含めると書き込みを受け付けたうえで応答を途中で切ります（結果が分からない場合の確認用）。`--delay 4` で GET の応答を遅らせると更新アイコンの回転を、`--post-delay 3` で書き込みの応答を遅らせると送信中の書き込みウインドウを確認できます。
 - `Tools/run-app-with-test-home.sh`: `HOME` と `CFFIXED_USER_HOME` を一時ディレクトリにしてアプリを起動します。DB・キャッシュ・Cookie・設定はすべてそこに保存されます。
 - 確認する手順:
   1. 起動して、左ペインに板一覧が出る
   2. 「テスト板」を選ぶと、スレッド一覧が出る（読み込み中は「板更新」のアイコンが回る）
   3. スレッドを開く。別のタブでも開き、タブを切り替える
   4. 「書き込む...」で書き込みウインドウを開き、送信する。確認ダイアログが出て、OK で書き込みが完了する。Cancel では本文が残る
+  5. `--post-delay 3` で、送信中も本文を編集できること、「書き込む」ボタンが押せないこと、送信中にウインドウを閉じても落ちないことを確認する。本文に `LOSTTEST` を含めると「書き込めたかどうか分かりません。」が出て、再送のボタンがないことを確認する
 
 ## コーディング上の注意
 
@@ -121,7 +122,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - `.nib` ディレクトリ内のファイルだけを変更しても Xcode は再コンパイルしません。`touch SevenFour/Japanese.lproj/<Name>.nib` してからビルドしてください。
 - IBAction やツールバーのアクション内で発生した Objective-C 例外は AppKit に握りつぶされ、ログにも出ません。「ボタンを押しても何も起きない」場合は、例外を疑って `@try`/`@catch` で一時的にログを出すか、lldb で `objc_exception_throw` にブレークポイントを置いて調べてください。
 - **スレッドとメインスレッド**（#9）: `SFThread` / `Ch2Thread` の更新・通知と WebView の操作はメインスレッドで行います。`SFURLProtocol` は CFNetwork のスレッドで動くので、スレの更新と HTML 生成はメインスレッドで行い、結果だけを読み込みを始めたスレッドで client に渡しています。旧 WebView（WebKitLegacy）をメインスレッド以外から触ると例外で終了します。
-- **通信（NSURLSession）**（#24、#25）: 板一覧（`Ch2BoardTree`）・スレッド一覧（`Ch2Board`）・画像（`SFImageWindowController`）・DAT（`Ch2Thread -update`）は `NSURLSession` で非同期に取得します。書き込み（`Ch2Thread -postWithName:mail:body:`）はまだ同期の `NSURLConnection` です（#26）。
+- **通信（NSURLSession）**（#24、#25、#26）: 板一覧（`Ch2BoardTree`）・スレッド一覧（`Ch2Board`）・画像（`SFImageWindowController`）・DAT（`Ch2Thread -update`）・書き込み（`Ch2Thread -postWithName:mail:body:completionHandler:`）は、すべて `NSURLSession` で非同期に通信します。`NSURLConnection` と同期通信は使わないでください。
   - 結果はメインスレッドで扱います（デリゲートのキューに `[NSOperationQueue mainQueue]` を指定するか、完了ハンドラから `dispatch_async(dispatch_get_main_queue(), ...)`）。
   - 取り消したあとに届いた応答は捨てます（`-cancel`、セッションやタスクが今のものか確認する）。板を離れたとき（`SFNormalBoard` の解放）や画像ウインドウを閉じたときは取り消します。
   - デリゲート付きの `NSURLSession` はデリゲートを retain します。終わったら `finishTasksAndInvalidate`、取り消すときは `invalidateAndCancel` を呼んでください。呼ばないとリークします。
@@ -132,7 +133,10 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
     - 応答の最後が改行で終わっていなければ、最後の行は捨てます（次の Range でその行から取り直す）。
     - 接続が途中で切れた、416、HTTP エラーのときは、キャッシュを変えません。
     - 更新中の `-update` は無視します（同じスレを複数のタブで開いている場合）。ログを削除したときは、更新中の応答でキャッシュを書き戻しません（`SFThread`）。
-- **書き込み（`Ch2Thread -postWithName:mail:body:`）の注意**（#7）
+- **書き込み（`Ch2Thread -postWithName:mail:body:completionHandler:`）の注意**（#7、#26）
+  - 非同期で送り、結果は完了ハンドラ（メインスレッド）で受け取ります。送信中の書き込みは拒否され（戻り値 NO）、二重に送られません。`SFPostWindowController` は送信中「書き込む」ボタンを無効にします。
+  - POST は自動で再送しません。送ったあとに応答が途中で切れた・タイムアウトした場合は `Ch2ThreadPostUnknown`（書き込めたか分からない）になり、ウインドウは再送のボタンを出さずにスレッドを更新します。接続できなかった場合（送っていない）は `Ch2ThreadPostClientError` です。
+  - 書き込みごとに新しい `NSURLSession` を使います（使い回した接続で失敗した POST を CFNetwork が送り直さないように）。Cookie は共有のストレージを使います。
   - Cookie は自前で `Cookie` ヘッダを組み立てず、共有の `NSHTTPCookieStorage` に任せます。bbs.cgi が書き込み確認ページで発行した Cookie を次の書き込みで送り返す必要があるためです。
   - 確認ページで OK を押したとき（同じ名前・メール・本文での再送）は、確認ページの `<form>`（`action`、hidden の値、送信ボタンの name/value）をブラウザと同じようにそのまま送ります（#12）。値は Shift_JIS で URL エンコードします。
   - それ以外の書き込みでは、`time` に現在の UNIX 時刻を送り、以前の確認ページの hidden の値（`sharedFormData_`）も付けます。

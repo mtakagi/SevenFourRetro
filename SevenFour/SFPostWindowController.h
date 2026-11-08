@@ -9,6 +9,10 @@
     IBOutlet NSProgressIndicator* indicator;
     
     SFThread* thread_;
+    // The button that sent the post, disabled while it is being sent.
+    NSButton* postButton_;
+    BOOL sending_;
+    BOOL closed_;
 }
 
 - (void) setThread: (SFThread*) th;
