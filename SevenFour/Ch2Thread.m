@@ -485,93 +485,177 @@ static NSString* hostAndPort(NSURL* url)
                     userInfo: nil];
 }
 
-- (void) connection: (NSURLConnection*) connection
-    didReceiveResponse: (NSURLResponse*) resp
+- (void) finishSession
 {
-    NSHTTPURLResponse* http = (NSHTTPURLResponse*) resp;
+    [session_ finishTasksAndInvalidate];
+    [session_ release];
+    session_ = nil;
+    [receivedData_ release];
+    receivedData_ = nil;
+}
 
-    switch ([http statusCode]) {
+- (void) cancel
+{
+    [session_ invalidateAndCancel];
+    [session_ release];
+    session_ = nil;
+    [receivedData_ release];
+    receivedData_ = nil;
+    isUpdating_ = NO;
+}
+
+// The offset a 206 reply starts at, from "Content-Range: bytes 100-199/200",
+// or NSNotFound when the header is missing or unreadable.
+static NSUInteger startOfContentRange(NSHTTPURLResponse* http)
+{
+    NSString* value = [[http allHeaderFields] objectForKey: @"Content-Range"];
+    if (! [value hasPrefix: @"bytes "]) {
+        return NSNotFound;
+    }
+    NSScanner* scanner = [NSScanner scannerWithString: [value substringFromIndex: 6]];
+    long long start;
+    if (! [scanner scanLongLong: &start] || start < 0) {
+        return NSNotFound;
+    }
+    return (NSUInteger) start;
+}
+
+// Keeps the complete lines of a DAT reply. A reply cut in the middle of a
+// line would otherwise put half a message in the cache, and the next Range
+// request would continue from the wrong place.
+static NSData* completeLines(NSData* data)
+{
+    const char* bytes = [data bytes];
+    NSUInteger length = [data length];
+    while (length > 0 && bytes[length - 1] != '\n') {
+        length--;
+    }
+    return [data subdataWithRange: NSMakeRange(0, length)];
+}
+
+#pragma mark NSURLSessionDataDelegate
+
+- (void) URLSession: (NSURLSession*) session
+           dataTask: (NSURLSessionDataTask*) task
+ didReceiveResponse: (NSURLResponse*) resp
+  completionHandler: (void (^)(NSURLSessionResponseDisposition)) completionHandler
+{
+    if (session != session_) {
+        completionHandler(NSURLSessionResponseCancel);
+        return;
+    }
+    
+    NSHTTPURLResponse* http = (NSHTTPURLResponse*) resp;
+    status_ = [http statusCode];
+
+    switch (status_) {
     case 200:
+    case 304:
         break;
     case 206:
-        break;
-    case 304:
+        // Appending to the cache is right only if the reply continues it.
+        // A 206 must say where it starts (RFC 9110); without a readable
+        // Content-Range it can't be shown to, so it isn't appended either.
+        if (requestedOffset_ == 0
+            || startOfContentRange(http) != requestedOffset_) {
+            NSLog(@"Ch2Thread: Content-Range %@ does not continue the cache (%lu bytes).",
+                  [[http allHeaderFields] objectForKey: @"Content-Range"],
+                  (unsigned long) requestedOffset_);
+            completionHandler(NSURLSessionResponseCancel);
+            return;
+        }
         break;
     case 416:
         NSLog(@"Ch2Thread: 'Abone' detected?");
-        [receivedData_ setLength: 0];
-        [connection cancel];
-		
-		[self finishUpdate];
-        break;
+        completionHandler(NSURLSessionResponseCancel);
+        return;
     case 302:
         NSLog(@"Ch2Thread: Thread is down.");
-        [receivedData_ setLength: 0];
-        [connection cancel];
-		
-		[self finishUpdate];
-        break;
+        completionHandler(NSURLSessionResponseCancel);
+        return;
     default:
-        NSLog(@"Ch2Thread: Unknown status code: %d on %@", 
-			  [http statusCode], [http URL]);
-        break;
+        NSLog(@"Ch2Thread: Unknown status code: %ld on %@", 
+			  (long) status_, [http URL]);
+        completionHandler(NSURLSessionResponseCancel);
+        return;
     }
+    
+    [receivedData_ setLength: 0];
+    completionHandler(NSURLSessionResponseAllow);
 }
 
-- (void) connection: (NSURLConnection*) connection
+- (void) URLSession: (NSURLSession*) session
+           dataTask: (NSURLSessionDataTask*) task
      didReceiveData: (NSData*) data
 {
+    if (session != session_) {
+        return;
+    }
     [receivedData_ appendData: data];
 }
 
-- (void) connection: (NSURLConnection*) connection
-   didFailWithError: (NSError*) error
+// Adds a DAT reply to the cache and the messages. A 200 reply to a Range
+// request is the whole DAT (the server ignored the Range), so it replaces
+// the cache instead of being appended to it.
+- (void) addReceivedData: (NSData*) data replacing: (BOOL) replacing
 {
-    [connection release];
-    [receivedData_ release];
-    receivedData_ = nil;
-
-    // Allow the next -update; otherwise every later update is ignored and
-    // whoever waits for it (e.g. a loading thread view) waits forever.
-    isUpdating_ = NO;
-
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName: Ch2ThreadConnectionDidFailNotification
-                      object: self
-                    userInfo: nil];
+    data = completeLines(data);
+    if ([data length] == 0) {
+        return;
+    }
+    
+    NSArray* newMessages = [Ch2DatParser parseData: data];
+    if (! newMessages) {
+        NSLog(@"Ch2Thread(%p) - Couldn't parse the DAT reply.", self);
+        return;
+    }
+    
+    NSMutableData* all = [NSMutableData data];
+    if (! replacing) {
+        NSData* cached = [delegate_ threadLoadCache: self];
+        [all appendData: cached];
+        [cached release];
+    }
+    [all appendData: data];
+    [delegate_ thread: self writeCache: all];
+    
+    if (replacing) {
+        [messages_ removeAllObjects];
+    }
+    [self addMessages: newMessages];
 }
 
-- (void) connectionDidFinishLoading: (NSURLConnection*) connection
-{    
-    // NSLog(@"Ch2Thread - connectionDidFinishLoading:");
-	
-    NSArray* newMessages = [Ch2DatParser parseData: receivedData_];
-	if (newMessages) {
-		// Write cache
-		NSMutableData* all = [[NSMutableData alloc] init];
-		
-		NSData* cached = [delegate_ threadLoadCache: self];
-		[all appendData: cached];
-		[all appendData: receivedData_];
-		
-		[delegate_ thread: self writeCache: all];
-		
-		[cached release];
-		[all release];
-		
-		// Parse
-		// FIXME: receivedData_ is parsed...
-		[self addMessages: newMessages];
-	} else {
-        NSLog(@"Ch2Thread(%p) - connectionDidFinishLoading: - Cound't parse receivedData_.",
-              self);
+- (void) URLSession: (NSURLSession*) session
+               task: (NSURLSessionTask*) task
+didCompleteWithError: (NSError*) error
+{
+    // A cancelled or replaced update reports nothing.
+    if (session != session_) {
+        return;
     }
-
-    [receivedData_ release];
-    receivedData_ = nil;
     
-    [connection release];
+    // Keep self alive: the session releases its delegate once invalidated.
+    [[self retain] autorelease];
+    NSData* data = [[receivedData_ retain] autorelease];
+    BOOL accepted = (status_ == 200 || status_ == 206 || status_ == 304);
     
+    if (error && ! (status_ != 0 && [[error domain] isEqualToString: NSURLErrorDomain]
+                    && [error code] == NSURLErrorCancelled)) {
+        // No reply, or the connection was lost midway: keep the cache.
+        NSLog(@"Ch2Thread - didCompleteWithError: %@", error);
+        [self finishSession];
+        isUpdating_ = NO;
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName: Ch2ThreadConnectionDidFailNotification
+                          object: self
+                        userInfo: nil];
+        return;
+    }
+    
+    [self finishSession];
+    if (! error && accepted && status_ != 304) {
+        [self addReceivedData: data replacing: (status_ == 200 && requestedOffset_ > 0)];
+    }
 	[self finishUpdate];
 }
 
@@ -590,9 +674,6 @@ static NSString* hostAndPort(NSURL* url)
         [self loadCache];
     }
 	
-#if 0
-	[self finishUpdate];
-#else
     NSMutableURLRequest* req;
     req = [NSMutableURLRequest requestWithURL: [self URLOfDat]
                                   cachePolicy: NSURLRequestReloadIgnoringCacheData
@@ -602,12 +683,13 @@ static NSString* hostAndPort(NSURL* url)
     [req setValue: userAgent_ forHTTPHeaderField: @"User-Agent"];
     
     NSData* cached = [delegate_ threadLoadCache: self];
-    if (cached) {
+    requestedOffset_ = [cached length];
+    if (requestedOffset_ > 0) {
         [req setValue: @"identity" forHTTPHeaderField: @"Accept-Encoding"];
 
         NSString* value;
         
-        value = [NSString stringWithFormat: @"bytes=%d-", [cached length]];
+        value = [NSString stringWithFormat: @"bytes=%lu-", (unsigned long) requestedOffset_];
         [req setValue: value forHTTPHeaderField: @"Range"];
         // NSLog(@"  Range: %@", value);
         
@@ -616,13 +698,17 @@ static NSString* hostAndPort(NSURL* url)
     } else {
         [req setValue: @"gzip" forHTTPHeaderField: @"Accept-Encoding"];
     }
+    [cached release];
     
-    NSURLConnection* connection;
-    connection = [[NSURLConnection alloc] initWithRequest: req delegate: self];
-    if (connection) {
-        receivedData_ = [[NSMutableData alloc] init];
-    }
-#endif
+    // The delegate methods run on the main thread, where the messages and
+    // the views using them live. The session keeps the thread alive until it
+    // is invalidated.
+    session_ = [[NSURLSession sessionWithConfiguration: [NSURLSessionConfiguration defaultSessionConfiguration]
+                                              delegate: self
+                                         delegateQueue: [NSOperationQueue mainQueue]] retain];
+    receivedData_ = [[NSMutableData alloc] init];
+    status_ = 0;
+    [[session_ dataTaskWithRequest: req] resume];
 }
 
 - (Ch2ThreadPostResult) resultFromHTMLComment: (NSString*) content
@@ -922,9 +1008,9 @@ static NSData* formBody(NSArray* fields)
 
 - (void) dealloc
 {
+    [self cancel];
     [board_ release];
     
-    [receivedData_ release];
     [alertMessage_ release];
     [self clearConfirmation];
     

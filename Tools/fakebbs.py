@@ -83,7 +83,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 start = int(rng[6:].rstrip("-") or 0)
                 if start >= len(data):
                     return self.send(416, b"")
-                return self.send(206, data[start:])
+                return self.send(206, data[start:],
+                                 headers=[("Content-Range", f"bytes {start}-{len(data) - 1}/{len(data)}")])
             return self.send(200, data)
         self.send(404, b"")
 
