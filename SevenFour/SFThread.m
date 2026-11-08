@@ -372,10 +372,7 @@ static QuickLiteDatabase* database_ = nil;
 
 - (NSURL*) URLOfHTML
 {
-    NSString* s = [NSString stringWithFormat: @"%@://%@/test/read.cgi%@/%d/",
-        SFSchemeOfURL(board_), [board_ host], [board_ path], number_];
-    
-    return [NSURL URLWithString: s];
+    return [Ch2Thread URLOfHTMLWithBoard: board_ number: number_];
 }
 
 - (NSURL*) URLOfDat

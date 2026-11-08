@@ -107,7 +107,6 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   2. 「テスト板」を選ぶと、スレッド一覧が出る（読み込み中は「板更新」のアイコンが回る）
   3. スレッドを開く。別のタブでも開き、タブを切り替える
   4. 「書き込む...」で書き込みウインドウを開き、送信する。確認ダイアログが出て、OK で書き込みが完了する。Cancel では本文が残る
-- 既知の制限: スレッド一覧から開いたスレッドの URL は、内部でポート番号が落ちます（`SFThreadFactory` / `SFURLProtocol`）。そのため、ローカルの偽サーバーではスレッドの本文を取得できません。`Ch2Thread` 自体はポートを保ちます。
 
 ## コーディング上の注意
 
@@ -149,7 +148,8 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
 - **通信は HTTPS 前提です。** 現行 SDK では App Transport Security (ATS) が有効なため、平文 HTTP の通信はブロックされます。ATS の例外は設定していません。
   - 板一覧のデフォルトは `https://menu.5ch.io/bbsmenu.html` です（`SFAppController.m`）。
   - 板・スレッド・DAT の URL を組み立てるときは `http://` を直接書かず、プレフィックスヘッダの `SFSchemeOfURL()`（http と明示されていなければ https）と `SFIsWebURL()` を使ってください。
-  - 内部 URL `sevenfour://host/...` はスキームを持たないので、板の URL へ戻すときは https として扱います（`SFURLProtocol.m`）。
+  - スレッドの URL（`read.cgi` / `dat`）から板とスレッド番号を取り出すときは `+[Ch2Thread boardOfThreadURL:number:]` を、スレッドの URL を作るときは `+URLOfHTMLWithBoard:number:` / `+URLOfDatWithBoard:number:` を使ってください。どれもポートを保ちます（#37）。ホストだけで URL を組み立て直さないでください。
+  - 内部 URL `sevenfour://host[:port]/...` はスキームを持ちません。`SFThreadFactory -threadWithURL:` は、すでに開いているスレッド（https、次に http）を探し、なければ https として扱います。
   - HTTP でしか提供されていない画像（スレッド内のリンク）や板は、ATS により読み込めません。
 
 ## 動作確認

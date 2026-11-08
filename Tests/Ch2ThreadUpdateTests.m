@@ -207,6 +207,60 @@ typedef enum {
 
     url = [Ch2Thread URLOfDatWithBoard: [NSURL URLWithString: @"https://egg.5ch.io/software"] number: 42];
     XCTAssertEqualObjects([url absoluteString], @"https://egg.5ch.io/software/dat/42.dat");
+
+    url = [Ch2Thread URLOfHTMLWithBoard: [NSURL URLWithString: @"http://127.0.0.1:8765/test/"] number: 42];
+    XCTAssertEqualObjects([url absoluteString], @"http://127.0.0.1:8765/test/read.cgi/test/42/");
+    url = [Ch2Thread URLOfHTMLWithBoard: [NSURL URLWithString: @"https://egg.5ch.io/software"] number: 42];
+    XCTAssertEqualObjects([url absoluteString], @"https://egg.5ch.io/test/read.cgi/software/42/");
+}
+
+- (void) assertBoardOf: (NSString*) url is: (NSString*) board number: (int) number
+{
+    int n = -1;
+    NSURL* result = [Ch2Thread boardOfThreadURL: [NSURL URLWithString: url] number: &n];
+    XCTAssertEqualObjects([result absoluteString], board, @"%@", url);
+    if (board) {
+        XCTAssertEqual(n, number, @"%@", url);
+    }
+}
+
+- (void) testBoardOfThreadURLKeepsThePort
+{
+    // read.cgi, with and without a range, and dat.
+    [self assertBoardOf: @"http://127.0.0.1:8765/test/read.cgi/test/1234567890/"
+                     is: @"http://127.0.0.1:8765/test" number: 1234567890];
+    [self assertBoardOf: @"http://127.0.0.1:8765/test/read.cgi/test/1234567890/l50"
+                     is: @"http://127.0.0.1:8765/test" number: 1234567890];
+    [self assertBoardOf: @"http://127.0.0.1:8765/test/dat/1234567890.dat"
+                     is: @"http://127.0.0.1:8765/test" number: 1234567890];
+    // Without a port, as on the real boards.
+    [self assertBoardOf: @"https://egg.5ch.io/test/read.cgi/software/1234567890/"
+                     is: @"https://egg.5ch.io/software" number: 1234567890];
+    [self assertBoardOf: @"https://egg.5ch.io/software/dat/1234567890.dat"
+                     is: @"https://egg.5ch.io/software" number: 1234567890];
+    // Anything but explicit http becomes https (an internal URL included).
+    [self assertBoardOf: @"sevenfour://127.0.0.1:8765/test/read.cgi/test/1234567890/"
+                     is: @"https://127.0.0.1:8765/test" number: 1234567890];
+}
+
+- (void) testBoardOfThreadURLRejectsOtherURLs
+{
+    [self assertBoardOf: @"https://egg.5ch.io/software/" is: nil number: 0];
+    [self assertBoardOf: @"https://egg.5ch.io/software/subject.txt" is: nil number: 0];
+    [self assertBoardOf: @"https://egg.5ch.io/software/dat/notes.txt" is: nil number: 0];
+    [self assertBoardOf: @"https://egg.5ch.io/test/read.cgi/software/" is: nil number: 0];
+    [self assertBoardOf: @"https://egg.5ch.io/test/read.cgi/software/abc/" is: nil number: 0];
+}
+
+- (void) testBoardOfThreadURLFindsTheSameDat
+{
+    // The thread list makes threads from the board URL; a thread URL must
+    // lead to the same DAT, or a second thread is made with the wrong URL.
+    NSURL* listBoard = [NSURL URLWithString: @"http://127.0.0.1:8765/test/"];
+    Ch2Thread* thread = [[[Ch2Thread alloc] initWithNumber: 1234567890 board: listBoard] autorelease];
+    int number = 0;
+    NSURL* board = [Ch2Thread boardOfThreadURL: [thread URLOfHTML] number: &number];
+    XCTAssertEqualObjects([Ch2Thread URLOfDatWithBoard: board number: number], [thread URLOfDat]);
 }
 
 - (void) testFetchesNewThreadAndWritesCache

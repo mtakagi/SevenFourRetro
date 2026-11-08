@@ -70,8 +70,12 @@
 	
 	visibleCount_ = 0;
     
-	NSString* s = [NSString stringWithFormat: @"sevenfour://%@%@", [url host], [url path]];
-	NSURLRequest* req = [NSURLRequest requestWithURL: [NSURL URLWithString: s]];
+	// The same URL served by SFURLProtocol, keeping the port (#37).
+	NSURLComponents* c = [NSURLComponents componentsWithURL: url resolvingAgainstBaseURL: YES];
+	[c setScheme: @"sevenfour"];
+	[c setQuery: nil];
+	[c setFragment: nil];
+	NSURLRequest* req = [NSURLRequest requestWithURL: [c URL]];
 	
 	[[self mainFrame] loadRequest: req];
 }

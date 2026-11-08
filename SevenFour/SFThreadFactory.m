@@ -37,42 +37,44 @@ SFThreadFactory* instance_ = nil;
     return th;
 }
 
+// A web URL with the host, port and path of an internal sevenfour:// URL.
+static NSURL* webURLOfInternalURL(NSURL* url, NSString* scheme)
+{
+    NSURLComponents* c = [NSURLComponents componentsWithURL: url resolvingAgainstBaseURL: YES];
+    [c setScheme: scheme];
+    return [c URL];
+}
+
 - (SFThread*) threadWithURL: (NSURL*) url
 {
-	NSArray* ary = [[url path] pathComponents];
-	NSURL* board;
-	
-	if ([ary count] >= 5 &&
-		[[ary objectAtIndex: 1] isEqualTo: @"test"] &&
-		[[ary objectAtIndex: 2] isEqualTo: @"read.cgi"]) {
-		/*
-		 0:
-		 1: test
-		 2: read.cgi
-		 3: BOARD
-		 4: NUMBER
-		 */
-		board = [NSURL URLWithString: 
-			[NSString stringWithFormat: @"%@://%@/%@", SFSchemeOfURL(url), [url host], [ary objectAtIndex: 3]]];
-		
-		return [self threadWithBoard: board
-							  number: [[ary objectAtIndex: 4] intValue]];		
-	} else if ([ary count] == 4 &&
-			   [[ary objectAtIndex: 2] isEqualTo: @"dat"]) {
-		/*
-		 0:
-		 1: BOARD
-		 2: dat
-		 3: NUMBER.dat
-		 */
-		board = [NSURL URLWithString: 
-			[NSString stringWithFormat: @"%@://%@/%@", SFSchemeOfURL(url), [url host], [ary objectAtIndex: 1]]];
-		NSString* last = [ary objectAtIndex: 3];
-		return [self threadWithBoard: board
-							  number: [[last substringToIndex: [last length] - 4] intValue]];		
-	} else {
-		return nil;
-	}
+    if ([[url scheme] isEqualToString: @"sevenfour"]) {
+        // An internal URL has no scheme of its own. The thread it shows was
+        // opened from a web URL first, so look for that one (an http board,
+        // such as a local test server, included) before assuming https.
+        NSArray* schemes = [NSArray arrayWithObjects: @"https", @"http", nil];
+        int i;
+        for (i = 0; i < [schemes count]; i++) {
+            int number = 0;
+            NSURL* board = [Ch2Thread boardOfThreadURL: webURLOfInternalURL(url, [schemes objectAtIndex: i])
+                                                number: &number];
+            if (! board) {
+                return nil;
+            }
+            NSString* key = [[Ch2Thread URLOfDatWithBoard: board number: number] absoluteString];
+            SFThread* th = [pool_ objectForKey: key];
+            if (th) {
+                return th;
+            }
+        }
+        url = webURLOfInternalURL(url, @"https");
+    }
+    
+    int number = 0;
+    NSURL* board = [Ch2Thread boardOfThreadURL: url number: &number];
+    if (! board) {
+        return nil;
+    }
+    return [self threadWithBoard: board number: number];
 }
 
 - (void) garbageCollect
