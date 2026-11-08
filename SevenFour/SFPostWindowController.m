@@ -29,6 +29,13 @@ static NSMutableSet* mails_ = NULL;
 	return [[bodyView textStorage] mutableString];
 }
 
+- (void) showWindow: (id) sender
+{
+    // Text put in with -body (e.g. ">>1") has no font of its own.
+    [bodyView setFont: [NSFont systemFontOfSize: [NSFont systemFontSize]]];
+    [super showWindow: sender];
+}
+
 #pragma mark Action
 // Sends the post in the background; the window stays usable meanwhile, but
 // the post button is disabled so the post can't be sent twice. When bbs.cgi
@@ -141,9 +148,6 @@ static NSMutableSet* mails_ = NULL;
     if (sending_) {
         return;
     }
-    if ([sender isKindOfClass: [NSButton class]]) {
-        postButton_ = sender;
-    }
 	
 	[names_ addObject: [nameBox stringValue]];
 	[mails_ addObject: [mailBox stringValue]];
@@ -151,18 +155,117 @@ static NSMutableSet* mails_ = NULL;
     [self sendPost];
 }
 
+#pragma mark Window
+
+// A label right-aligned to the field it names.
+static NSTextField* label(NSString* text, NSRect frame)
+{
+    NSTextField* field = [NSTextField labelWithString: text];
+    [field setFrame: frame];
+    [field setAlignment: NSTextAlignmentRight];
+    [field setAutoresizingMask: NSViewMaxXMargin | NSViewMinYMargin];
+    return field;
+}
+
+// A combo box that lists the names or mails used before (this controller
+// is its data source) and completes what is typed.
+static NSComboBox* comboBox(NSRect frame, id dataSource)
+{
+    NSComboBox* box = [[[NSComboBox alloc] initWithFrame: frame] autorelease];
+    [box setUsesDataSource: YES];
+    [box setDataSource: dataSource];
+    [box setCompletes: YES];
+    [box setNumberOfVisibleItems: 5];
+    [box setAutoresizingMask: NSViewMaxXMargin | NSViewMinYMargin];
+    return box;
+}
+
+// The window PostWindow.nib held (#30), made in code with the same layout:
+// name and mail at the top left, the body filling the window, the post
+// button at the bottom right and the progress indicator at the top right.
+- (NSWindow*) makeWindow
+{
+    NSWindow* window = [[[NSWindow alloc]
+        initWithContentRect: NSMakeRect(116, 449, 489, 261)
+                  styleMask: NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+                             | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
+                    backing: NSBackingStoreBuffered
+                      defer: YES] autorelease];
+    [window setReleasedWhenClosed: NO];
+    [window setContentMinSize: NSMakeSize(449, 247)];
+    NSView* content = [window contentView];
+
+    [content addSubview: label(@"名前", NSMakeRect(17, 221, 38, 17))];
+    [content addSubview: label(@"Email", NSMakeRect(17, 192, 38, 17))];
+
+    nameBox = comboBox(NSMakeRect(60, 217, 203, 26), self);
+    [content addSubview: nameBox];
+    mailBox = comboBox(NSMakeRect(60, 188, 203, 26), self);
+    [content addSubview: mailBox];
+
+    // The body: plain text, as it is sent. Smart quotes, dashes and the
+    // like are off so the text is posted exactly as typed.
+    NSScrollView* scroll = [[[NSScrollView alloc] initWithFrame: NSMakeRect(60, 60, 409, 123)] autorelease];
+    [scroll setBorderType: NSBezelBorder];
+    [scroll setHasVerticalScroller: YES];
+    [scroll setAutoresizingMask: NSViewWidthSizable | NSViewHeightSizable];
+    NSSize size = [scroll contentSize];
+    bodyView = [[[NSTextView alloc] initWithFrame: NSMakeRect(0, 0, size.width, size.height)] autorelease];
+    [bodyView setMinSize: NSMakeSize(0, size.height)];
+    [bodyView setMaxSize: NSMakeSize(FLT_MAX, FLT_MAX)];
+    [bodyView setVerticallyResizable: YES];
+    [bodyView setHorizontallyResizable: NO];
+    [bodyView setAutoresizingMask: NSViewWidthSizable];
+    [[bodyView textContainer] setWidthTracksTextView: YES];
+    [bodyView setRichText: NO];
+    [bodyView setImportsGraphics: NO];
+    [bodyView setAllowsUndo: YES];
+    [bodyView setFont: [NSFont systemFontOfSize: [NSFont systemFontSize]]];
+    [bodyView setAutomaticQuoteSubstitutionEnabled: NO];
+    [bodyView setAutomaticDashSubstitutionEnabled: NO];
+    [bodyView setAutomaticTextReplacementEnabled: NO];
+    [bodyView setAutomaticDataDetectionEnabled: NO];
+    [bodyView setAutomaticLinkDetectionEnabled: NO];
+    [scroll setDocumentView: bodyView];
+    [content addSubview: scroll];
+
+    NSButton* button = [NSButton buttonWithTitle: @"書き込む" target: self action: @selector(post:)];
+    [button setFrame: NSMakeRect(383, 12, 92, 32)];
+    [button setAutoresizingMask: NSViewMinXMargin | NSViewMaxYMargin];
+    [content addSubview: button];
+    postButton_ = button;
+
+    indicator = [[[NSProgressIndicator alloc] initWithFrame: NSMakeRect(453, 222, 16, 16)] autorelease];
+    [indicator setStyle: NSProgressIndicatorStyleSpinning];
+    [indicator setControlSize: NSControlSizeSmall];
+    [indicator setDisplayedWhenStopped: NO];
+    [indicator setAutoresizingMask: NSViewMinXMargin | NSViewMinYMargin];
+    [content addSubview: indicator];
+
+    // Tab goes name, mail, body, button; typing starts in the body.
+    [nameBox setNextKeyView: mailBox];
+    [mailBox setNextKeyView: bodyView];
+    [bodyView setNextKeyView: button];
+    [button setNextKeyView: nameBox];
+    [window setInitialFirstResponder: bodyView];
+
+    return window;
+}
+
 #pragma mark Override
 - (id) init
 {
-	self = [self initWithWindowNibName: @"PostWindow"];
-	return self;
-}
+    self = [super initWithWindow: nil];
+    if (! self) {
+        return nil;
+    }
 
-- (id) initWithWindowNibName: (NSString*) name
-{
-    self = [super initWithWindowNibName: name];
+    NSWindow* window = [self makeWindow];
+    [self setWindow: window];
+    [window setDelegate: self];
+    // The frame the user left the window at, as with the nib.
     [self setWindowFrameAutosaveName: @"PostWindow"];
-    
+
 	if (! names_) {
 		names_ = [[NSMutableSet alloc] init];
 		mails_ = [[NSMutableSet alloc] init];
@@ -179,13 +282,10 @@ static NSMutableSet* mails_ = NULL;
 		[mails_ addObject: @"age"];
 		[mails_ addObject: @"sage"];
 	}
+
+	[mailBox setStringValue: @"sage"];
 		
     return self;
-}
-
-- (void) awakeFromNib
-{
-	[mailBox setStringValue: @"sage"];
 }
 
 - (void) dealloc
@@ -220,6 +320,36 @@ static NSMutableSet* mails_ = NULL;
     } else {
 		return 0;
 	}
+}
+
+// The names or mails a combo box offers.
+- (NSArray*) itemsOfComboBox: (NSComboBox*) box
+{
+    if (box == nameBox) {
+        return [names_ allObjects];
+    } else if (box == mailBox) {
+        return [mails_ allObjects];
+    }
+    return [NSArray array];
+}
+
+// Completes what is typed with a name or mail used before (the combo boxes
+// have always been set to complete, but without this they never did).
+- (NSString*) comboBox: (NSComboBox*) box completedString: (NSString*) string
+{
+    NSEnumerator* e = [[self itemsOfComboBox: box] objectEnumerator];
+    NSString* item;
+    while ((item = [e nextObject]) != nil) {
+        if ([string length] > 0 && [item hasPrefix: string]) {
+            return item;
+        }
+    }
+    return nil;
+}
+
+- (NSUInteger) comboBox: (NSComboBox*) box indexOfItemWithStringValue: (NSString*) string
+{
+    return [[self itemsOfComboBox: box] indexOfObject: string];
 }
 
 - (id) comboBox: (NSComboBox*) box objectValueForItemAtIndex: (NSInteger) index

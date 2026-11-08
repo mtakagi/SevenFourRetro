@@ -9,7 +9,7 @@ SevenFour は 2005〜2006 年頃に書かれた macOS 用 2ch ブラウザ（Coc
 このリポジトリでは、それを **macOS 26 以降の Apple silicon (arm64) と Intel (x86_64)** で動かせるように保守しています。
 
 - 言語: Objective-C（**手動参照カウント / MRC**。ARC は無効）
-- UI: 旧形式の Interface Builder `.nib`（`SevenFour/Japanese.lproj/*.nib`、keyedobjects 形式）
+- UI: 旧形式の Interface Builder `.nib`（`SevenFour/Japanese.lproj/*.nib`、keyedobjects 形式）。書き込みウインドウはコードで作っています（#30）
 - 表示: WebKit の旧 `WebView`（WebKit1）+ `SevenFour/Skin/` の HTML/CSS/JS
 - 保存: SQLite（`~/Library/Application Support/SevenFour/Index.db`）
 
@@ -125,7 +125,8 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - デリゲートやデータソースにするクラスは、プロトコル（`NSWindowDelegate`、`WebPolicyDelegate` など）を宣言してください。宣言しないと型の警告が出て、メソッドの型の食い違いも見つかりません。
   - ローカルで `ld: warning: search path '...' not found` が出る場合は、シェルの `LIBRARY_PATH` などの環境によるもので、プロジェクトの警告ではありません。
 - `.nib` は旧形式のバイナリなので、テキストとして編集できません。UI を変えるときは、コードで変更するか `.xib` への移行を検討してください。
-  - 旧 nib には現行 AppKit で読み込むと例外になるデータが残っていることがあります（例: `PostWindow.nib` の `NSComboBox` 内部テーブル列の `NSIdentifier` が数値だった。#2）。`keyedobjects.nib` は NSKeyedArchiver のバイナリ plist なので、`plistlib` などで該当オブジェクトだけを書き換えて修正できます。
+  - 書き込みウインドウ（`SFPostWindowController -makeWindow`）は、`PostWindow.nib` と同じ配置・リサイズの挙動をコードで作っています（#30）。ほかの nib をコードに移すときの参考にしてください。nib の配置や設定は、`keyedobjects.nib` を `plistlib` で読むと分かります（`NSFrame`、`NSvFlags` の下位 6 ビットが autoresizing mask）。
+  - 旧 nib には現行 AppKit で読み込むと例外になるデータが残っていることがあります（例: 旧 `PostWindow.nib` の `NSComboBox` 内部テーブル列の `NSIdentifier` が数値だった。#2。この nib は #30 でコードに置き換えました）。`keyedobjects.nib` は NSKeyedArchiver のバイナリ plist なので、`plistlib` などで該当オブジェクトだけを書き換えて修正できます。
   - `.nib` ディレクトリ内のファイルだけを変更しても Xcode は再コンパイルしません。`touch SevenFour/Japanese.lproj/<Name>.nib` してからビルドしてください。
 - IBAction やツールバーのアクション内で発生した Objective-C 例外は AppKit に握りつぶされ、ログにも出ません。「ボタンを押しても何も起きない」場合は、例外を疑って `@try`/`@catch` で一時的にログを出すか、lldb で `objc_exception_throw` にブレークポイントを置いて調べてください。
 - **スレッドとメインスレッド**（#9）: `SFThread` / `Ch2Thread` の更新・通知と WebView の操作はメインスレッドで行います。`SFURLProtocol` は CFNetwork のスレッドで動くので、スレの更新と HTML 生成はメインスレッドで行い、結果だけを読み込みを始めたスレッドで client に渡しています。旧 WebView（WebKitLegacy）をメインスレッド以外から触ると例外で終了します。
