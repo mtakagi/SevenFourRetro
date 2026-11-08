@@ -3,7 +3,7 @@
 #import "SearchableArrayController.h"
 
 @class TabbedWebView;
-@class HTThreePaneSplitView;
+@class SFThreePaneView;
 @class SFImageWindowController;
 @class SFPopUpWindowController;
 @class SFSidePaneController;
@@ -26,7 +26,7 @@
     NSView* toolbarProgress;
     NSProgressIndicator* progressIndicator_;
 
-    HTThreePaneSplitView* splitView;
+    SFThreePaneView* splitView;
     TabbedWebView* tabbedWebView;
 
 	NSPanel* findPanel;

@@ -2,7 +2,7 @@
 
 #import "SFMainWindowController+Window.h"
 
-#import "HTThreePaneSplitView.h"
+#import "SFThreePaneView.h"
 #import "RatingCell.h"
 #import "SFStateCell.h"
 #import "TabbedWebView.h"
@@ -104,6 +104,9 @@ static NSView* toolbarItemView(NSView* view, NSSize size)
     [threadListView setUsesAlternatingRowBackgroundColors: YES];
     [threadListView setColumnAutoresizingStyle: NSTableViewLastColumnOnlyAutoresizingStyle];
     [threadListView setFocusRingType: NSFocusRingTypeNone];
+    // Full-width rows, as with the nib: the automatic style would make them
+    // inset when the list is the leftmost pane (the board list hidden).
+    [threadListView setStyle: NSTableViewStyleFullWidth];
 
     NSTableColumn* column;
     NSDictionary* options = nil;
@@ -257,7 +260,7 @@ static NSView* toolbarItemView(NSView* view, NSSize size)
     [window setAutorecalculatesKeyViewLoop: YES];
     NSView* content = [window contentView];
 
-    splitView = [[[HTThreePaneSplitView alloc] initWithFrame: [content bounds]] autorelease];
+    splitView = [[[SFThreePaneView alloc] initWithFrame: [content bounds]] autorelease];
     [splitView setAutoresizingMask: NSViewWidthSizable | NSViewHeightSizable];
     [content addSubview: splitView];
 
