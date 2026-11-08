@@ -9,7 +9,7 @@ SevenFour は 2005〜2006 年頃に書かれた macOS 用 2ch ブラウザ（Coc
 このリポジトリでは、それを **macOS 26 以降の Apple silicon (arm64) と Intel (x86_64)** で動かせるように保守しています。
 
 - 言語: Objective-C（**手動参照カウント / MRC**。ARC は無効）
-- UI: 旧形式の Interface Builder `.nib`（`SevenFour/Japanese.lproj/*.nib`、keyedobjects 形式）。書き込みウインドウ（#30）とレスのポップアップウインドウ（#28）はコードで作っています
+- UI: メインウインドウ（#29）・書き込みウインドウ（#30）・レスのポップアップウインドウ（#28）はコードで作っています。メニュー・環境設定（`MainMenu.nib`）と画像ウインドウ（`ImageWindow.nib`）は旧形式の Interface Builder `.nib`（`SevenFour/Japanese.lproj/*.nib`、keyedobjects 形式）のままです
 - 表示: `WKWebView`（#28）+ `SevenFour/Skin/` の HTML/CSS/JS
 - 保存: SQLite（`~/Library/Application Support/SevenFour/Index.db`）
 
@@ -124,12 +124,14 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
 - 現行 SDK で削除された API（`NSMenuView`、`-[NSFont defaultLineHeightForFont]` など）は代替 API に置き換えてください。
 - **コンパイラの警告はゼロに保ちます**（#32）。非推奨 API の警告（`GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS`）と、`objc_msgSend` の型チェック（`ENABLE_STRICT_OBJC_MSGSEND`）は有効です。新しく警告を出さないでください。
   - 旧 WebView（WebKit 1）は #28 でなくしました。使わないでください（`WKWebView` を使います）。
-  - すぐに置き換えられない非推奨 API は、使う箇所だけを `#pragma clang diagnostic push` / `ignored "-Wdeprecated-declarations"` / `pop` で囲み、理由と担当の Issue をコメントに書いてください。現在は MainWindow の `NSDrawer`、SidePane の `+[NSBundle loadNibNamed:owner:]`、ツールバー項目の `setMinSize:` / `setMaxSize:` だけです（#29）。
+  - すぐに置き換えられない非推奨 API は、使う箇所だけを `#pragma clang diagnostic push` / `ignored "-Wdeprecated-declarations"` / `pop` で囲み、理由と担当の Issue をコメントに書いてください。現在はありません（MainWindow の `NSDrawer` などは #29 でなくしました）。
   - `objc_msgSend` を直接呼ぶときは、メソッドの型にキャストしてから呼んでください（`Compat/OgreKit/OgreKit.m` を参照）。
   - デリゲートやデータソースにするクラスは、プロトコル（`NSWindowDelegate`、`WKNavigationDelegate` など）を宣言してください。宣言しないと型の警告が出て、メソッドの型の食い違いも見つかりません。
   - ローカルで `ld: warning: search path '...' not found` が出る場合は、シェルの `LIBRARY_PATH` などの環境によるもので、プロジェクトの警告ではありません。
 - `.nib` は旧形式のバイナリなので、テキストとして編集できません。UI を変えるときは、コードで変更するか `.xib` への移行を検討してください。
-  - 書き込みウインドウ（`SFPostWindowController -makeWindow`）は、`PostWindow.nib` と同じ配置・リサイズの挙動をコードで作っています（#30）。ほかの nib をコードに移すときの参考にしてください。nib の配置や設定は、`keyedobjects.nib` を `plistlib` で読むと分かります（`NSFrame`、`NSvFlags` の下位 6 ビットが autoresizing mask）。
+  - 書き込みウインドウ（`SFPostWindowController -makeWindow`）は、`PostWindow.nib` と同じ配置・リサイズの挙動をコードで作っています（#30）。メインウインドウ（`SFMainWindowController+Window.m`、`SFSidePaneController -makeView`）も同じです（#29）。ほかの nib をコードに移すときの参考にしてください。
+  - メインウインドウ（#29）: 板一覧は常に左ペイン（3 ペインの分割ビュー `HTThreePaneSplitView` の side view）です。ドロワー（`NSDrawer`）はなくしたので、旧設定の `UseDrawer`・`DrawerEdge`・`DrawerSize` は読みません。環境設定（`MainMenu.nib`）のドロワーの項目は、nib のビューに非表示のビット（`NSvFlags` の 0x80000000）を立てて隠しています。Tab キーの順は、ウインドウが画面上の位置から決めます（`autorecalculatesKeyViewLoop`）。
+  - nib の設定を正確に知るには、ビルドしたアプリの nib を小さなプログラムで読み込み（`NSNib` の `-initWithNibData:bundle:`、持ち主は `setValue:forUndefinedKey:` を受け流すオブジェクト）、できたビューやテーブル列の値（大きさ、autoresizing mask、列の幅・並べ替え・バインディングなど）を表示する方法もあります（#29 で使いました）。nib の配置や設定は、`keyedobjects.nib` を `plistlib` で読むと分かります（`NSFrame`、`NSvFlags` の下位 6 ビットが autoresizing mask）。
   - 旧 nib には現行 AppKit で読み込むと例外になるデータが残っていることがあります（例: 旧 `PostWindow.nib` の `NSComboBox` 内部テーブル列の `NSIdentifier` が数値だった。#2。この nib は #30 でコードに置き換えました）。`keyedobjects.nib` は NSKeyedArchiver のバイナリ plist なので、`plistlib` などで該当オブジェクトだけを書き換えて修正できます。
   - `.nib` ディレクトリ内のファイルだけを変更しても Xcode は再コンパイルしません。`touch SevenFour/Japanese.lproj/<Name>.nib` してからビルドしてください。
 - IBAction やツールバーのアクション内で発生した Objective-C 例外は AppKit に握りつぶされ、ログにも出ません。「ボタンを押しても何も起きない」場合は、例外を疑って `@try`/`@catch` で一時的にログを出すか、lldb で `objc_exception_throw` にブレークポイントを置いて調べてください。

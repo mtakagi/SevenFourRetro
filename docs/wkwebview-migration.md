@@ -10,7 +10,7 @@
   - タブの中身は `NSView<SFTabContent>` です（`SFTabContent.h`）。
   - 中身から受け取るのは、タブの名前（`-tabTitle`）と、読み込み中かどうか（`-isTabLoading`）だけです。
   - 変化は、中身が投げる `SFTabContentDidChangeNotification` で知ります。
-  - クラス名は、`MainWindow.nib` が参照しているため残しています（#29 で見直す）。
+  - クラス名は、本文が WebView だったころの名前のままです（`MainWindow.nib` は #29 でコードに置き換えました）。
 - **`SFThreadView`**（本文）が `SFTabContent` を実装します。
   - 読み込みの開始・終了とタイトルの変化、スレの差分更新の開始・終了を、`SFTabContentDidChangeNotification` にして投げます。
   - 本文の URL（`-pageURL`）とページ内検索（`-findString:forward:`）も、`SFThreadView` のメソッドにしました。

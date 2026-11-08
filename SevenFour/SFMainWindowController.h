@@ -10,31 +10,27 @@
 @class SFThread;
 @class SFThreadFactory;
 
+// The main window: the board list (SFSidePaneController), the thread list
+// and the thread tabs in a three-pane split view, with the toolbar and the
+// find panel. Made in code (#29); see SFMainWindowController+Window.m.
 @interface SFMainWindowController : NSWindowController <NSWindowDelegate, NSToolbarDelegate, NSToolbarItemValidation, NSTableViewDataSource> {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"   // NSDrawer: #29
-    IBOutlet NSDrawer* drawer;
-#pragma clang diagnostic pop
-	
-    IBOutlet SearchableArrayController* threadsController;
-    IBOutlet NSTableView* threadListView;
-    IBOutlet NSView* threadListViewContainer;
-	
-    IBOutlet NSView* toolbarThreadSearch;
-    IBOutlet NSSearchField* threadSearchField;
+    NSObjectController* documentController_;   // content: the document
+    SearchableArrayController* threadsController;
+    NSTableView* threadListView;
 
-    IBOutlet NSView* toolbarBoardSearch;
-    IBOutlet NSSearchField* boardSearchField;
+    // The views of the toolbar items and what they hold.
+    NSView* toolbarThreadSearch;
+    NSSearchField* threadSearchField;
+    NSView* toolbarBoardSearch;
+    NSSearchField* boardSearchField;
+    NSView* toolbarProgress;
+    NSProgressIndicator* progressIndicator_;
 
-    IBOutlet NSView* toolbarProgress;
-    
-    IBOutlet HTThreePaneSplitView* splitView;
-    IBOutlet TabbedWebView* tabbedWebView;
-	
-	IBOutlet NSWindow* findPanel;
-	IBOutlet NSTextField* findField;
-	
-	IBOutlet NSTextField* urlField;
+    HTThreePaneSplitView* splitView;
+    TabbedWebView* tabbedWebView;
+
+	NSPanel* findPanel;
+	NSTextField* findField;
     
     NSToolbar* toolbar_;
     NSDictionary* toolbarItems_;

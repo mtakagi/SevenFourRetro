@@ -23,7 +23,7 @@ Swift 版（mtakagi/SevenFour#112）で同じ操作を比べるための、現�
 | `OpenThreadOnSubjectColumn` | YES | 開くのはタイトルの列をクリックしたときだけ |
 | `ThreadShowAll` | NO | 本文はすべてではなく、新着と最後の数レスを表示 |
 | `ThreadShowMin` | 10 | 新着が少なくても最後の 10 レスは表示 |
-| `UseDrawer` | NO | 板一覧は左ペイン（3 ペイン） |
+| `UseDrawer` | NO | 板一覧は左ペイン（3 ペイン）。#29 でドロワーをなくしたので、今は設定に関係なく左ペイン |
 | `SplitVertical` | NO | スレッド一覧の下に本文 |
 
 - メインウインドウは約 1100×650 ポイントで、スレッド一覧は 8 行ほど見えます。

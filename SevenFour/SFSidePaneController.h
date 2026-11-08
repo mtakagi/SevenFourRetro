@@ -2,12 +2,14 @@
 
 #import <Cocoa/Cocoa.h>
 
+// The board list in the left pane of the main window: an outline of the
+// board tree, with a search field above it (shown when the
+// ShowSearchFieldInSidePane setting is on). Made in code (#29).
 @interface SFSidePaneController : NSObject <NSOutlineViewDataSource, NSOutlineViewDelegate>
 {
-    IBOutlet NSView* baseView;
-    IBOutlet NSOutlineView* outlineView;
-    IBOutlet NSScrollView* scrollView;
-	IBOutlet NSSearchField* searchField;
+    NSView* baseView;
+    NSOutlineView* outlineView;
+	NSSearchField* searchField;
 
     NSString* keyword_;
     unsigned skipped_;

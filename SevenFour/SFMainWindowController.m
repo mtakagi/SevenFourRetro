@@ -1,4 +1,5 @@
 #import "SFMainWindowController.h"
+#import "SFMainWindowController+Window.h"
 
 #import "SFAppController.h"
 #import "SFImageWindowController.h"
@@ -14,9 +15,6 @@
 
 #import "TabbedWebView.h"
 #import "HTThreePaneSplitView.h"
-#import "WhiteFormatter.h"
-#import "RatingCell.h"
-#import "SFStateCell.h"
 #import "SFSymbolToolbarItem.h"
 
 #import "SFThreadHTMLFormatter.h"
@@ -152,15 +150,10 @@ static SFMainWindowController* activeController_;
 	return (SFThreadView*) [tabbedWebView selectedContent];
 }
 
-// Shows the URL of the selected tab's page (nil: none) and updates the title.
+// The selected tab's page changed (url, nil: none): updates the title.
+// (MainWindow.nib also showed url in a debug panel that was never opened.)
 - (void) updatePageURL: (NSURL*) url
 {
-	if (url) {
-		[urlField setStringValue: [url absoluteString]];
-	} else {
-		[urlField setStringValue: @""];
-	}
-	
 	[self synchronizeWindowTitleWithDocumentName];
 	
 	// FIXME
@@ -363,34 +356,12 @@ static SFMainWindowController* activeController_;
     [self validateToolbarSoon: nil];
 }
 
+// Shows or hides the board list (the left pane). The board list was once
+// also shown in a drawer (the UseDrawer setting); drawers are gone (#29),
+// so it is always the left pane.
 - (IBAction) toggleBoardTree: (id) sender
 {
-    NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
-	
-	if ([defaults integerForKey: @"UseDrawer"]) {
-        
-        // When Opened
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"   // NSDrawer: #29
-        if ([drawer state] == NSDrawerOpenState) {
-            [drawer close];
-            return;
-        }
-#pragma clang diagnostic pop
-        
-        // When Closed
-        NSInteger edge = [defaults integerForKey: @"DrawerEdge"];
-        
-        if (edge == 1) {
-            [drawer openOnEdge: NSMinXEdge]; // Left 
-        } else if (edge == 2) {
-            [drawer openOnEdge: NSMaxXEdge]; // Right
-        } else {
-            [drawer open];
-        }
-	} else {
-        [splitView toggleSideView: sender];
-    }
+    [splitView toggleSideView: sender];
 }
 
 - (IBAction) toggleMainPane: (id) sender
@@ -555,11 +526,10 @@ static SFMainWindowController* activeController_;
 #pragma mark Override
 - (id) init
 {
-    self = [super initWithWindowNibName: @"MainWindow"];
+    self = [super initWithWindow: nil];
     if (! self) {
         return nil;
     }
-    [self setWindowFrameAutosaveName: @"MainWindow"];
 
     // Toolbar
     NSString* path = [[NSBundle mainBundle] pathForResource: @"Toolbar"
@@ -567,15 +537,25 @@ static SFMainWindowController* activeController_;
     toolbarItems_ = [[NSDictionary alloc] initWithContentsOfFile: path];    
 	
 	activeURL_ = nil;
+
+    [self setWindow: [self makeWindow]];
+    [self setUpWindow];
+    // The frame the user left the window at, as with the nib.
+    [self setWindowFrameAutosaveName: @"MainWindow"];
+    // Each new window is offset from the last, as NSWindowController does
+    // for a window it loads from a nib.
+    static NSPoint cascadePoint = {0, 0};
+    cascadePoint = [[self window] cascadeTopLeftFromPoint: cascadePoint];
 	
     NSLog(@"SFMainWC %p - init", self);
     
     return self;
 }
 
-- (void) windowDidLoad
+// What windowDidLoad did after loading MainWindow.nib.
+- (void) setUpWindow
 {
-	DEBUG_LOG(@"SFMainWC %p - windowDidLoad", self);
+	DEBUG_LOG(@"SFMainWC %p - setUpWindow", self);
     
     int i;
 	
@@ -591,12 +571,6 @@ static SFMainWindowController* activeController_;
     
     // Board Tree
 	sidePaneController_ = [[SFSidePaneController alloc] init];
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-	// The old nib loading retains the nib's top-level objects for their
-	// owner; the replacement doesn't, so it waits for the nib rework (#29).
-	[NSBundle loadNibNamed: @"SidePane" owner: sidePaneController_];
-#pragma clang diagnostic pop
 	[sidePaneController_ setDelegate: self];
     [sidePaneController_ setAdditionalSearchField: boardSearchField];
 	[sidePaneController_ update];
@@ -619,31 +593,7 @@ static SFMainWindowController* activeController_;
     
     NSArray* columns = [threadListView tableColumns];
     NSTableColumn* column;
-    WhiteFormatter* formatter;
 
-    // The nib leaves the DAT number and the creation date editable, so Tab
-    // in the list started editing them (#46). Only the rating is set by
-    // the user.
-    for (NSString* identifier in [NSArray arrayWithObjects: @"number", @"creationDate", nil]) {
-        [[columns objectAtIndex: [threadListView columnWithIdentifier: identifier]] setEditable: NO];
-    }
-
-    column = [columns objectAtIndex: [threadListView columnWithIdentifier: @"rate"]];
-	[column setDataCell: [[RatingCell alloc] init]];
-	
-    column = [columns objectAtIndex: [threadListView columnWithIdentifier: @"state"]];	
-	[column setDataCell: [[SFStateCell alloc] init]];
-	
-    column = [columns objectAtIndex: [threadListView columnWithIdentifier: @"delta"]];
-    formatter = [[WhiteFormatter alloc] init];
-    [formatter setMinValue: -1];
-    [[column dataCell] setFormatter: formatter];
-    
-    column = [columns objectAtIndex: [threadListView columnWithIdentifier: @"local"]];
-    formatter = [[WhiteFormatter alloc] init];
-    [formatter setMinValue: 0];
-    [[column dataCell] setFormatter: formatter];
-    
     [threadListView setFont: [NSFont systemFontOfSize: [NSFont systemFontSize]]];
     
     NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
@@ -672,22 +622,12 @@ static SFMainWindowController* activeController_;
     
     // User Defaults
     NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
-    NSString* str;
-    
-    str = [defaults stringForKey: @"DrawerSize"];
-    if (str) {
-        [drawer setContentSize: NSSizeFromString(str)];
-    }
-	
-	if ([defaults boolForKey: @"UseDrawer"]) {
-		[drawer setContentView: [sidePaneController_ view]];  
-		// Open Drawer
-		[self toggleBoardTree: nil];
-	} else {
-		[splitView setSideView: [sidePaneController_ view]];
-		[splitView useSideViewAlternativeStyle: YES];
-        [splitView setSideViewNeedsBorder: YES];
-	}
+
+    // The board list is the left pane, even with the old UseDrawer setting
+    // on (#29).
+    [splitView setSideView: [sidePaneController_ view]];
+    [splitView useSideViewAlternativeStyle: YES];
+    [splitView setSideViewNeedsBorder: YES];
 
 	[splitView setVertical: [defaults integerForKey: @"SplitVertical"]];
 
@@ -723,11 +663,6 @@ static SFMainWindowController* activeController_;
     
     // User Defaults
     NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
-    NSString* str;
-    
-    str = NSStringFromSize([drawer contentSize]);
-    [defaults setObject: str
-                 forKey: @"DrawerSize"];
 
 	/*
 	[defaults setObject: [splitView stringWithSavedPosition]
@@ -747,6 +682,13 @@ static SFMainWindowController* activeController_;
 	// Stop observing so a closed window's controller isn't messaged later.
 	[[NSNotificationCenter defaultCenter] removeObserver: self];
 	[NSObject cancelPreviousPerformRequestsWithTarget: self];
+	// The bindings observe this controller and the document.
+	[progressIndicator_ unbind: NSAnimateBinding];
+	for (NSTableColumn* column in [threadListView tableColumns]) {
+		[column unbind: NSValueBinding];
+	}
+	[threadsController unbind: NSContentArrayBinding];
+	[documentController_ unbind: NSContentObjectBinding];
 }
 
 - (void) windowDidBecomeMain:(NSNotification*) n
@@ -800,42 +742,19 @@ static SFMainWindowController* activeController_;
     [item setTarget: self];
     
     
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    // The views come from the nib with fixed frames and no constraints, so
-    // the toolbar can't size them itself; replacing min/max size with
-    // constraints goes with the MainWindow rework (#29).
+    // The views are sized with Auto Layout (constraints of their size).
     if ([identifier isEqualToString: @"search"]) {
-        NSView* field = toolbarThreadSearch;
-        [[threadSearchField cell] setPlaceholderString: _(@"Thread")];
-        
-        [item setView: field];
-        
-        NSRect frame = [field frame];
-        [item setMinSize: frame.size];
-        [item setMaxSize: frame.size];
+        [threadSearchField setPlaceholderString: _(@"Thread")];
+        [item setView: toolbarThreadSearch];
     } else if ([identifier isEqualToString: @"boardSearch"]) {
-        NSView* field = toolbarBoardSearch;
-        [[boardSearchField cell] setPlaceholderString: _(@"Board")];
-        
-        [item setView: field];
-        
-        NSRect frame = [field frame];
-        [item setMinSize: frame.size];
-        [item setMaxSize: frame.size];
+        [boardSearchField setPlaceholderString: _(@"Board")];
+        [item setView: toolbarBoardSearch];
     } else if ([identifier isEqualToString: @"progress"]){
-        NSView* field = toolbarProgress;
-        
-        [item setView: field];
-        
-        NSRect frame = [field frame];
-        [item setMinSize: frame.size];
-        [item setMaxSize: frame.size];
+        [item setView: toolbarProgress];
     } else {
         NSString* s = [NSString stringWithFormat: @"%@:", identifier];
         [item setAction: NSSelectorFromString(s)];
     }
-#pragma clang diagnostic pop
     NSString* symbol = [dict objectForKey: @"symbol"];
     if (symbol && ! [item isKindOfClass: [SFSymbolToolbarItem class]]) {
         [item setImage: [NSImage imageWithSystemSymbolName: symbol
