@@ -238,7 +238,10 @@
     }
 
     NSMutableString* responseHead = [NSMutableString stringWithFormat: @"HTTP/1.1 %d X\r\n", [response status]];
-    [responseHead appendFormat: @"Content-Length: %lu\r\n", (unsigned long) [[response body] length]];
+    // A Content-Length set by the test wins, e.g. to send a reply cut short.
+    if (! [[response headers] objectForKey: @"Content-Length"]) {
+        [responseHead appendFormat: @"Content-Length: %lu\r\n", (unsigned long) [[response body] length]];
+    }
     [responseHead appendString: @"Connection: close\r\n"];
     NSEnumerator* enumerator = [[response headers] keyEnumerator];
     NSString* name;

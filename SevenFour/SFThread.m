@@ -432,6 +432,8 @@ static QuickLiteDatabase* database_ = nil;
 - (void) prepareCh2Thread
 {
 	if (cacheDeleted_) {
+		// An update still running would write the deleted log back.
+		[thread_ cancel];
 		[thread_ release];
 		thread_ = nil;
 		cacheDeleted_ = NO;
@@ -499,6 +501,10 @@ static QuickLiteDatabase* database_ = nil;
 
 - (void) thread: (Ch2Thread*) th writeCache: (NSData*) data
 {
+    // The log was deleted while this update was running: don't bring it back.
+    if (cacheDeleted_) {
+        return;
+    }
     NSFileManager* manager;
     manager = [NSFileManager defaultManager];
     [manager createDirectoryAtPath: [[self cachePath] stringByDeletingLastPathComponent]

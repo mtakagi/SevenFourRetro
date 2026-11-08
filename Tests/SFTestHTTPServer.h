@@ -19,7 +19,8 @@
 - (NSDictionary*) formFields;
 @end
 
-// A response: status, extra headers and body.
+// A response: status, extra headers and body. Content-Length is added from
+// the body unless the headers set it.
 @interface SFTestHTTPResponse : NSObject {
     int status_;
     NSDictionary* headers_;

@@ -41,12 +41,23 @@
 @end
 
 
+typedef enum {
+    SFTestDatNormal,          // the DAT, 206 with the rest for a Range
+    SFTestDatRangeNotSatisfiable,   // 416
+    SFTestDatIgnoresRange,    // 200 with the whole DAT even for a Range
+    SFTestDatConnectionLost,  // 206 that closes before Content-Length bytes
+    SFTestDatCutMidLine,      // 206 whose last line has no newline
+    SFTestDatServerError,     // 500 with an HTML page
+    SFTestDatSlow,            // like SFTestDatNormal, after 1 second
+    SFTestDatWrongRange,      // 206 whose Content-Range doesn't continue the cache
+} SFTestDatMode;
+
 @interface Ch2ThreadUpdateTests : XCTestCase {
     SFTestHTTPServer* server_;
     NSString* directory_;
     NSData* dat_;
     NSData* append_;
-    int mode_;   // 0: serve the DAT (206 for a Range), 1: answer 416
+    int mode_;   // how the server answers; see SFTestDatMode
 }
 @end
 
@@ -63,16 +74,52 @@
         if (! [[request path] isEqualToString: @"/test/dat/1234567890.dat"]) {
             return nil;
         }
-        if (mode_ == 1) {
-            return [SFTestHTTPResponse responseWithStatus: 416 headers: nil body: [NSData data]];
-        }
         NSMutableData* all = [NSMutableData dataWithData: dat_];
         [all appendData: append_];
         NSString* range = [request header: @"Range"];
-        if ([range hasPrefix: @"bytes="]) {
-            NSUInteger from = (NSUInteger) [[range substringFromIndex: 6] integerValue];
-            NSData* rest = [all subdataWithRange: NSMakeRange(from, [all length] - from)];
-            return [SFTestHTTPResponse responseWithStatus: 206 headers: nil body: rest];
+        NSUInteger from = [range hasPrefix: @"bytes="]
+            ? (NSUInteger) [[range substringFromIndex: 6] integerValue] : NSNotFound;
+        NSData* rest = (from != NSNotFound)
+            ? [all subdataWithRange: NSMakeRange(from, [all length] - from)] : nil;
+        NSDictionary* contentRange = (from != NSNotFound)
+            ? [NSDictionary dictionaryWithObject: [NSString stringWithFormat: @"bytes %lu-%lu/%lu",
+                  (unsigned long) from, (unsigned long) [all length] - 1, (unsigned long) [all length]]
+                                          forKey: @"Content-Range"]
+            : nil;
+
+        switch (mode_) {
+        case SFTestDatRangeNotSatisfiable:
+            return [SFTestHTTPResponse responseWithStatus: 416 headers: nil body: [NSData data]];
+        case SFTestDatIgnoresRange:
+            return [SFTestHTTPResponse responseWithStatus: 200 headers: nil body: all];
+        case SFTestDatConnectionLost: {
+            NSDictionary* headers = [NSDictionary dictionaryWithObject:
+                [NSString stringWithFormat: @"%lu", (unsigned long) [rest length]] forKey: @"Content-Length"];
+            return [SFTestHTTPResponse responseWithStatus: 206 headers: headers
+                                                     body: [rest subdataWithRange: NSMakeRange(0, [rest length] / 2)]];
+        }
+        case SFTestDatCutMidLine: {
+            // The first new line whole, then the start of the second.
+            NSUInteger cut = [append_ length] - 10;
+            return [SFTestHTTPResponse responseWithStatus: 206 headers: contentRange
+                                                     body: [rest subdataWithRange: NSMakeRange(0, cut)]];
+        }
+        case SFTestDatServerError:
+            return [SFTestHTTPResponse responseWithStatus: 500 headers: nil
+                                                     body: SFTestShiftJIS(@"<html><body>エラー<>です<>本当に<>\n</body></html>\n")];
+        case SFTestDatWrongRange:
+            return [SFTestHTTPResponse responseWithStatus: 206
+                                                  headers: [NSDictionary dictionaryWithObject: @"bytes 0-99/200"
+                                                                                       forKey: @"Content-Range"]
+                                                     body: rest];
+        case SFTestDatSlow:
+            [NSThread sleepForTimeInterval: 1.0];
+            break;
+        default:
+            break;
+        }
+        if (rest) {
+            return [SFTestHTTPResponse responseWithStatus: 206 headers: contentRange body: rest];
         }
         return [SFTestHTTPResponse responseWithStatus: 200 headers: nil body: dat_];
     }];
@@ -98,20 +145,53 @@
     return thread;
 }
 
-// Runs -update and waits until it finishes or fails.
-- (BOOL) update: (Ch2Thread*) thread
+// Runs -update and waits until it finishes or fails. Returns the name of
+// the notification that ended it, or nil when none came.
+- (NSString*) updateAndWait: (Ch2Thread*) thread
 {
-    __block BOOL finished = NO;
+    __block NSString* ended = nil;
     NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
+    void (^record)(NSNotification*) = ^(NSNotification* n) {
+        XCTAssertTrue([NSThread isMainThread]);
+        ended = [n name];
+    };
     id a = [center addObserverForName: Ch2ThreadDidFinishUpdatingNotification object: thread queue: nil
-                           usingBlock: ^(NSNotification* n) { finished = YES; }];
+                           usingBlock: record];
     id b = [center addObserverForName: Ch2ThreadConnectionDidFailNotification object: thread queue: nil
-                           usingBlock: ^(NSNotification* n) { finished = YES; }];
+                           usingBlock: record];
     [thread update];
-    BOOL result = SFTestWaitFor(10, ^BOOL { return finished; });
+    // The download runs in the background.
+    XCTAssertNil(ended);
+    XCTAssertTrue([thread isUpdating]);
+    SFTestWaitFor(10, ^BOOL { return ended != nil; });
     [center removeObserver: a];
     [center removeObserver: b];
-    return result;
+    return ended;
+}
+
+- (BOOL) update: (Ch2Thread*) thread
+{
+    return [self updateAndWait: thread] != nil;
+}
+
+- (NSString*) cachePath
+{
+    return [directory_ stringByAppendingPathComponent: @"1234567890.dat"];
+}
+
+// A thread whose cache holds the first 4 messages.
+- (Ch2Thread*) threadWithCachedDat
+{
+    [dat_ writeToFile: [self cachePath] atomically: YES];
+    SFTestThreadCache* cache = [[[SFTestThreadCache alloc] initWithPath: [self cachePath]] autorelease];
+    return [self threadWithCache: cache];
+}
+
+- (NSData*) wholeDat
+{
+    NSMutableData* all = [NSMutableData dataWithData: dat_];
+    [all appendData: append_];
+    return all;
 }
 
 - (void) testDatURLKeepsThePort
@@ -173,7 +253,7 @@
     SFTestThreadCache* cache = [[[SFTestThreadCache alloc] initWithPath: path] autorelease];
     Ch2Thread* thread = [self threadWithCache: cache];
 
-    mode_ = 1;
+    mode_ = SFTestDatRangeNotSatisfiable;
     XCTAssertTrue([self update: thread]);
     XCTAssertEqual([thread count], 4);
     XCTAssertFalse([thread isUpdating]);
@@ -188,6 +268,122 @@
     XCTAssertTrue([self update: thread]);
     XCTAssertFalse([thread isUpdating]);
     XCTAssertEqual([thread count], 0);
+}
+
+- (void) testWholeDatForARangeReplacesTheCache
+{
+    Ch2Thread* thread = [self threadWithCachedDat];
+    mode_ = SFTestDatIgnoresRange;
+    XCTAssertEqualObjects([self updateAndWait: thread], Ch2ThreadDidFinishUpdatingNotification);
+
+    // Not 4 + 6: the whole DAT replaces what was cached.
+    XCTAssertEqual([thread count], 6);
+    XCTAssertEqualObjects([[thread messageAtIndex: 5] objectForKey: @"no"], [NSNumber numberWithInt: 6]);
+    XCTAssertEqualObjects([NSData dataWithContentsOfFile: [self cachePath]], [self wholeDat]);
+}
+
+- (void) testLostConnectionKeepsTheCache
+{
+    Ch2Thread* thread = [self threadWithCachedDat];
+    mode_ = SFTestDatConnectionLost;
+    XCTAssertEqualObjects([self updateAndWait: thread], Ch2ThreadConnectionDidFailNotification);
+    XCTAssertFalse([thread isUpdating]);
+    XCTAssertEqual([thread count], 4);
+    XCTAssertEqualObjects([NSData dataWithContentsOfFile: [self cachePath]], dat_);
+
+    // The next update continues from the same place.
+    mode_ = SFTestDatNormal;
+    XCTAssertEqualObjects([self updateAndWait: thread], Ch2ThreadDidFinishUpdatingNotification);
+    XCTAssertEqual([thread count], 6);
+    XCTAssertEqualObjects([NSData dataWithContentsOfFile: [self cachePath]], [self wholeDat]);
+}
+
+- (void) testReplyCutMidLineKeepsOnlyWholeLines
+{
+    Ch2Thread* thread = [self threadWithCachedDat];
+    mode_ = SFTestDatCutMidLine;
+    XCTAssertEqualObjects([self updateAndWait: thread], Ch2ThreadDidFinishUpdatingNotification);
+    XCTAssertEqual([thread count], 5);
+    XCTAssertEqualObjects([[thread messageAtIndex: 4] objectForKey: @"body"], @" 5 つめ（差分） ");
+
+    // The cache ends with a whole line, so the next Range request fetches
+    // the rest of the cut line and nothing is duplicated.
+    NSData* cached = [NSData dataWithContentsOfFile: [self cachePath]];
+    XCTAssertEqual(((const char*) [cached bytes])[[cached length] - 1], '\n');
+
+    mode_ = SFTestDatNormal;
+    XCTAssertEqualObjects([self updateAndWait: thread], Ch2ThreadDidFinishUpdatingNotification);
+    XCTAssertEqual([thread count], 6);
+    XCTAssertEqualObjects([NSData dataWithContentsOfFile: [self cachePath]], [self wholeDat]);
+}
+
+- (void) testServerErrorKeepsTheCache
+{
+    Ch2Thread* thread = [self threadWithCachedDat];
+    mode_ = SFTestDatServerError;
+    XCTAssertEqualObjects([self updateAndWait: thread], Ch2ThreadDidFinishUpdatingNotification);
+    XCTAssertFalse([thread isUpdating]);
+    XCTAssertEqual([thread count], 4);
+    XCTAssertEqualObjects([NSData dataWithContentsOfFile: [self cachePath]], dat_);
+}
+
+- (void) testRangeThatDoesNotContinueTheCacheIsNotAppended
+{
+    Ch2Thread* thread = [self threadWithCachedDat];
+    mode_ = SFTestDatWrongRange;
+    XCTAssertEqualObjects([self updateAndWait: thread], Ch2ThreadDidFinishUpdatingNotification);
+    XCTAssertEqual([thread count], 4);
+    XCTAssertEqualObjects([NSData dataWithContentsOfFile: [self cachePath]], dat_);
+}
+
+- (void) testUpdateWhileUpdatingIsIgnored
+{
+    // Two tabs showing the same thread ask for an update at the same time.
+    Ch2Thread* thread = [self threadWithCachedDat];
+    mode_ = SFTestDatSlow;
+    __block int finished = 0;
+    id observer = [[NSNotificationCenter defaultCenter]
+        addObserverForName: Ch2ThreadDidFinishUpdatingNotification object: thread queue: nil
+                usingBlock: ^(NSNotification* n) { finished++; }];
+    [thread update];
+    [thread update];
+    XCTAssertTrue(SFTestWaitFor(10, ^BOOL { return finished > 0; }));
+    SFTestWaitFor(0.5, ^BOOL { return finished > 1; });
+    [[NSNotificationCenter defaultCenter] removeObserver: observer];
+
+    XCTAssertEqual(finished, 1);
+    XCTAssertEqual([[server_ requests] count], (NSUInteger) 1);
+    XCTAssertEqual([thread count], 6);
+    XCTAssertEqualObjects([NSData dataWithContentsOfFile: [self cachePath]], [self wholeDat]);
+}
+
+- (void) testCancelledUpdateChangesNothing
+{
+    // E.g. the tab was closed, or the log deleted, while updating.
+    Ch2Thread* thread = [self threadWithCachedDat];
+    mode_ = SFTestDatSlow;
+    __block int ended = 0;
+    NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
+    id a = [center addObserverForName: Ch2ThreadDidFinishUpdatingNotification object: thread queue: nil
+                           usingBlock: ^(NSNotification* n) { ended++; }];
+    id b = [center addObserverForName: Ch2ThreadConnectionDidFailNotification object: thread queue: nil
+                           usingBlock: ^(NSNotification* n) { ended++; }];
+    [thread update];
+    [thread cancel];
+    XCTAssertFalse([thread isUpdating]);
+
+    // Give the reply time to arrive (the server waits 1 second).
+    SFTestWaitFor(2, ^BOOL { return ended > 0; });
+    [center removeObserver: a];
+    [center removeObserver: b];
+    XCTAssertEqual(ended, 0);
+    XCTAssertEqual([thread count], 4);
+    XCTAssertEqualObjects([NSData dataWithContentsOfFile: [self cachePath]], dat_);
+
+    // The thread can be updated again.
+    mode_ = SFTestDatNormal;
+    XCTAssertEqualObjects([self updateAndWait: thread], Ch2ThreadDidFinishUpdatingNotification);
+    XCTAssertEqual([thread count], 6);
 }
 
 @end

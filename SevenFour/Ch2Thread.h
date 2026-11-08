@@ -21,7 +21,7 @@ extern NSString* Ch2ThreadDidFinishUpdatingNotification;
 
 extern NSString* Ch2ThreadConnectionDidFailNotification;
 
-@interface Ch2Thread : NSObject {
+@interface Ch2Thread : NSObject <NSURLSessionDataDelegate> {
     NSMutableArray* messages_;
     NSString* subject_;
 
@@ -30,6 +30,11 @@ extern NSString* Ch2ThreadConnectionDidFailNotification;
     int oldCount_;
     
     NSMutableData* receivedData_;
+    // The DAT download: its session, the cache size it asked to continue
+    // from (0 for the whole DAT), and the HTTP status it got.
+    NSURLSession* session_;
+    NSUInteger requestedOffset_;
+    NSInteger status_;
     
     NSString* alertMessage_;
     
@@ -70,7 +75,14 @@ extern NSString* Ch2ThreadConnectionDidFailNotification;
 
 - (void) setDelegate: (id) delegate;
 
+// Downloads the DAT (only what the cache lacks) in the background. When it
+// is over, Ch2ThreadDidFinishUpdatingNotification (loaded, unchanged or an
+// HTTP error) or Ch2ThreadConnectionDidFailNotification (no reply) is posted
+// on the main thread. An -update while one is running is ignored.
 - (void) update;
+// Stops the current update without posting any notification or writing the
+// cache.
+- (void) cancel;
 - (BOOL) isUpdating;
 
 - (Ch2ThreadPostResult) postWithName: (NSString*) name
