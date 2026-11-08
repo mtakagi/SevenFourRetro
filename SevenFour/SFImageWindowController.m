@@ -34,7 +34,8 @@ static NSMutableSet* opendURLs_ = nil;
     // Create Image
     NSImage* image = [[NSImage alloc] initWithData: data];
     
-    NSImageRep* rep = [image bestRepresentationForDevice: nil];
+    NSRect whole = NSMakeRect(0, 0, [image size].width, [image size].height);
+    NSImageRep* rep = [image bestRepresentationForRect: whole context: nil hints: nil];
     rect.size.width = [rep pixelsWide];
     rect.size.height = [rep pixelsHigh];	
     
@@ -52,7 +53,7 @@ static NSMutableSet* opendURLs_ = nil;
         rect.size.height  = maxH;
     }
 	
-    [image setScalesWhenResized: YES];
+    // Images always scale to their size (setScalesWhenResized: is gone).
     [image setSize: rect.size];
 	
     [imageView setFrame: rect];

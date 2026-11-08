@@ -246,9 +246,9 @@ static SFMainWindowController* activeController_;
     int i;
     for (i = 0; i < [menu numberOfItems]; i++) {
         NSMenuItem* item = [menu itemAtIndex: i];
-        [item setState: NSOffState];
+        [item setState: NSControlStateValueOff];
     }
-    [sender setState: NSOnState];
+    [sender setState: NSControlStateValueOn];
     
     [[threadSearchField cell] setSendsWholeSearchString: YES];
 }
@@ -261,9 +261,9 @@ static SFMainWindowController* activeController_;
     int i;
     for (i = 0; i < [menu numberOfItems]; i++) {
         NSMenuItem* item = [menu itemAtIndex: i];
-        [item setState: NSOffState];
+        [item setState: NSControlStateValueOff];
     }
-    [sender setState: NSOnState];
+    [sender setState: NSControlStateValueOn];
     
     [[threadSearchField cell] setSendsWholeSearchString: NO];
 }
@@ -291,7 +291,7 @@ static SFMainWindowController* activeController_;
 	BOOL flag = [[self document] isOffline];
 	[[self document] setOffline: ! flag];
 	
-	[sender setState: flag ? NSOnState : NSOffState];
+	[sender setState: flag ? NSControlStateValueOn : NSControlStateValueOff];
 	
 	[self synchronizeWindowTitleWithDocumentName];
 }
@@ -325,10 +325,10 @@ static SFMainWindowController* activeController_;
 - (IBAction) copyURLOfBoard: (id) sender
 {
     NSPasteboard* pb = [NSPasteboard generalPasteboard];
-    [pb declareTypes: [NSArray arrayWithObject: NSStringPboardType]
+    [pb declareTypes: [NSArray arrayWithObject: NSPasteboardTypeString]
                owner: self];
     [pb setString: [[[self document] URLOfBoard] absoluteString]
-          forType: NSStringPboardType];
+          forType: NSPasteboardTypeString];
 }
 
 - (IBAction) openURLOfThread: (id) sender
@@ -342,10 +342,10 @@ static SFMainWindowController* activeController_;
 	NSURL* url = [[(SFThreadView*)[tabbedWebView selectedWebView] thread] URLOfHTML];
 
     NSPasteboard* pb = [NSPasteboard generalPasteboard];
-    [pb declareTypes: [NSArray arrayWithObject: NSStringPboardType]
+    [pb declareTypes: [NSArray arrayWithObject: NSPasteboardTypeString]
                owner: self];
     [pb setString: [url absoluteString]
-          forType: NSStringPboardType];
+          forType: NSPasteboardTypeString];
 }
 
 - (IBAction) updateBoardTree: (id) sender
@@ -384,13 +384,16 @@ static SFMainWindowController* activeController_;
 	if ([defaults integerForKey: @"UseDrawer"]) {
         
         // When Opened
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"   // NSDrawer: #29
         if ([drawer state] == NSDrawerOpenState) {
             [drawer close];
             return;
         }
+#pragma clang diagnostic pop
         
         // When Closed
-        int edge = [defaults integerForKey: @"DrawerEdge"];
+        NSInteger edge = [defaults integerForKey: @"DrawerEdge"];
         
         if (edge == 1) {
             [drawer openOnEdge: NSMinXEdge]; // Left 
@@ -420,7 +423,7 @@ static SFMainWindowController* activeController_;
     
 	SFThreadView* view;
     
-    if (([[NSApp currentEvent] modifierFlags] & NSCommandKeyMask) != 0) {
+    if (([[NSApp currentEvent] modifierFlags] & NSEventModifierFlagCommand) != 0) {
         WebView* fg = [tabbedWebView selectedWebView];
         
         [self newTab: nil];
@@ -587,7 +590,12 @@ static SFMainWindowController* activeController_;
     
     // Board Tree
 	sidePaneController_ = [[SFSidePaneController alloc] init];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+	// The old nib loading retains the nib's top-level objects for their
+	// owner; the replacement doesn't, so it waits for the nib rework (#29).
 	[NSBundle loadNibNamed: @"SidePane" owner: sidePaneController_];
+#pragma clang diagnostic pop
 	[sidePaneController_ setDelegate: self];
     [sidePaneController_ setAdditionalSearchField: boardSearchField];
 	[sidePaneController_ update];
@@ -600,7 +608,7 @@ static SFMainWindowController* activeController_;
     [threadListView setAutosaveTableColumns: YES];
     [threadListView setAction: @selector(openThreadFromListBySingleClick:)];
     [threadListView setDoubleAction: @selector(openThreadFromList:)];
-    [threadListView registerForDraggedTypes: [NSArray arrayWithObjects: NSURLPboardType,  nil]];
+    [threadListView registerForDraggedTypes: [NSArray arrayWithObjects: NSPasteboardTypeURL,  nil]];
     [threadListView setDataSource: self];
     
     tableColumns_ = [[NSMutableArray alloc] init];
@@ -784,6 +792,11 @@ static SFMainWindowController* activeController_;
     [item setTarget: self];
     
     
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    // The views come from the nib with fixed frames and no constraints, so
+    // the toolbar can't size them itself; replacing min/max size with
+    // constraints goes with the MainWindow rework (#29).
     if ([identifier isEqualToString: @"search"]) {
         NSView* field = toolbarThreadSearch;
         [[threadSearchField cell] setPlaceholderString: _(@"Thread")];
@@ -814,6 +827,7 @@ static SFMainWindowController* activeController_;
         NSString* s = [NSString stringWithFormat: @"%@:", identifier];
         [item setAction: NSSelectorFromString(s)];
     }
+#pragma clang diagnostic pop
     NSString* symbol = [dict objectForKey: @"symbol"];
     if (symbol && ! [item isKindOfClass: [SFSymbolToolbarItem class]]) {
         [item setImage: [NSImage imageWithSystemSymbolName: symbol
@@ -842,12 +856,10 @@ static SFMainWindowController* activeController_;
         @"closeTab", 
         @"deleteThreadCache", 
         NSToolbarFlexibleSpaceItemIdentifier,
-        NSToolbarSeparatorItemIdentifier,
         NSToolbarSpaceItemIdentifier,
         NSToolbarShowColorsItemIdentifier, 
         NSToolbarShowFontsItemIdentifier, 
         NSToolbarPrintItemIdentifier, 
-        NSToolbarCustomizeToolbarItemIdentifier,
         nil];
 }
 
@@ -861,7 +873,6 @@ static SFMainWindowController* activeController_;
         @"postToThread", 
         NSToolbarFlexibleSpaceItemIdentifier,
         @"search", 
-        NSToolbarCustomizeToolbarItemIdentifier,
         nil];
 }
 
@@ -943,7 +954,7 @@ decisionListener: (id<WebPolicyDecisionListener>) listener
 
 
 - (void) webView: (WebView*) wv mouseDidMoveOverElement: (NSDictionary*) info
-   modifierFlags: (unsigned int) flags
+   modifierFlags: (NSUInteger) flags
 {
     NSURL* url = [info objectForKey: WebElementLinkURLKey];
 	if (! [activeURL_ isEqualTo: url]) {
@@ -953,7 +964,7 @@ decisionListener: (id<WebPolicyDecisionListener>) listener
 		return;
     }
     
-	if (flags & NSAlternateKeyMask) {
+	if (flags & NSEventModifierFlagOption) {
 		return;
 	}
     
@@ -1008,7 +1019,7 @@ decisionListener: (id<WebPolicyDecisionListener>) listener
     NSArray* ary = [threadsController arrangedObjects];
     SFThread* th = [ary objectAtIndex: [[rows objectAtIndex: 0] intValue]];
  
-    [pboard declareTypes: [NSArray arrayWithObject: NSURLPboardType]
+    [pboard declareTypes: [NSArray arrayWithObject: NSPasteboardTypeURL]
                    owner: self];
     [[th URLOfHTML] writeToPasteboard: pboard];
     

@@ -127,7 +127,7 @@ static QuickLiteDatabase* database_ = nil;
 	
     // Remove file
     NSFileManager* manager = [NSFileManager defaultManager];
-    [manager removeFileAtPath: [self cachePath] handler: nil];
+    [manager removeItemAtPath: [self cachePath] error: NULL];
 	
     // Clear metadata
     local_ = 0;
@@ -480,7 +480,7 @@ static QuickLiteDatabase* database_ = nil;
 #endif
 	
 	[visitedTime_ release];
-	visitedTime_ = [[NSCalendarDate date] retain];
+	visitedTime_ = [[NSDate date] retain];
 }
 
 - (NSDictionary*) messageAtIndex: (int) index
@@ -519,8 +519,9 @@ static QuickLiteDatabase* database_ = nil;
 {
     NSFileManager* manager = [NSFileManager defaultManager];
     NSDictionary* attr;
-    attr = [manager fileAttributesAtPath: [self cachePath]
-                            traverseLink: YES];
+    // Follows a symbolic link, as fileAttributesAtPath:traverseLink: did.
+    attr = [manager attributesOfItemAtPath: [[self cachePath] stringByResolvingSymlinksInPath]
+                                     error: NULL];
     return [attr objectForKey: NSFileModificationDate];
 }
 

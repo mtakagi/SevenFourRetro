@@ -20,12 +20,12 @@
 }
 
 - (id)initWithContentRect: (NSRect) contentRect 
-                styleMask: (unsigned int) mask
+                styleMask: (NSWindowStyleMask) mask
                   backing: (NSBackingStoreType) type
                     defer: (BOOL) flag
 {
     self = [super initWithContentRect: contentRect
-                            styleMask: NSBorderlessWindowMask
+                            styleMask: NSWindowStyleMaskBorderless
                               backing: NSBackingStoreBuffered
                                 defer: flag];
     

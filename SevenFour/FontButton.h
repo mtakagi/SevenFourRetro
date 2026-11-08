@@ -3,7 +3,7 @@
 #import <Cocoa/Cocoa.h>
 
 
-@interface FontButton : NSButton {
+@interface FontButton : NSButton <NSFontChanging> {
 	NSFont* font_;
 	NSString* familyKey_;
 	NSString* pointSizeKey_;

@@ -117,7 +117,13 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - OgreKit シム: Ruby 構文の OgreKit と同様に `^` / `$` は行単位でマッチし、置換文字列の `\0`〜`\9` はキャプチャグループを表します。
   - QuickLite シム: 列には `"subject"` と `"threads.subject"` のどちらの名前でもアクセスできます。`QuickLiteCursor -save` は ROWID を使って `UPDATE` します（単一テーブルの `SELECT` で取得したカーソルのみ対応）。値はバインドされるので、`setValue:forColumn:` に渡す文字列を `prepareStringForQuery:` でエスケープしないでください。
   - 新しい API が必要な場合は、シムに実装を足すか、標準 API（`NSRegularExpression`、`sqlite3`）を直接使ってください。
-- 現行 SDK で削除された API（`NSMenuView`、`-[NSFont defaultLineHeightForFont]` など）は代替 API に置き換えてください。非推奨（deprecated）なだけの API はそのまま使えます。
+- 現行 SDK で削除された API（`NSMenuView`、`-[NSFont defaultLineHeightForFont]` など）は代替 API に置き換えてください。
+- **コンパイラの警告はゼロに保ちます**（#32）。非推奨 API の警告（`GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS`）と、`objc_msgSend` の型チェック（`ENABLE_STRICT_OBJC_MSGSEND`）は有効です。新しく警告を出さないでください。
+  - 旧 WebView（WebKit 1）の非推奨警告だけは、`project.yml` の `DISABLE_LEGACY_WEBKIT_DEPRECATIONS` で止めています。WKWebView への移行（#27、#28）で WebKit 1 をなくしたら、この定義を削除してください。
+  - それ以外で、すぐに置き換えられない非推奨 API は、使う箇所だけを `#pragma clang diagnostic push` / `ignored "-Wdeprecated-declarations"` / `pop` で囲み、理由と担当の Issue をコメントに書いてください。現在は MainWindow の `NSDrawer`、SidePane の `+[NSBundle loadNibNamed:owner:]`、ツールバー項目の `setMinSize:` / `setMaxSize:` だけです（#29）。
+  - `objc_msgSend` を直接呼ぶときは、メソッドの型にキャストしてから呼んでください（`Compat/OgreKit/OgreKit.m` を参照）。
+  - デリゲートやデータソースにするクラスは、プロトコル（`NSWindowDelegate`、`WebPolicyDelegate` など）を宣言してください。宣言しないと型の警告が出て、メソッドの型の食い違いも見つかりません。
+  - ローカルで `ld: warning: search path '...' not found` が出る場合は、シェルの `LIBRARY_PATH` などの環境によるもので、プロジェクトの警告ではありません。
 - `.nib` は旧形式のバイナリなので、テキストとして編集できません。UI を変えるときは、コードで変更するか `.xib` への移行を検討してください。
   - 旧 nib には現行 AppKit で読み込むと例外になるデータが残っていることがあります（例: `PostWindow.nib` の `NSComboBox` 内部テーブル列の `NSIdentifier` が数値だった。#2）。`keyedobjects.nib` は NSKeyedArchiver のバイナリ plist なので、`plistlib` などで該当オブジェクトだけを書き換えて修正できます。
   - `.nib` ディレクトリ内のファイルだけを変更しても Xcode は再コンパイルしません。`touch SevenFour/Japanese.lproj/<Name>.nib` してからビルドしてください。

@@ -71,7 +71,7 @@ NSString* Ch2MessageThreadSubject = @"subject";
 	NSMutableArray* result = [NSMutableArray array];
 	
     NSRange range;
-    unsigned length;
+    NSUInteger length;
     int i, base = 0;
     
     range.location = 0;

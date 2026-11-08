@@ -127,11 +127,18 @@ static NSData* shiftJISDataWithReferences(NSString* s)
 @end
 
 @implementation NSDate (RFC1123)
+// e.g. "Sun, 08 Nov 2026 00:00:00 GMT", for If-Modified-Since.
 - (NSString*) descriptionInRFC1123
 {
-    return [self descriptionWithCalendarFormat: @"%a, %d %b %Y %H:%M:%S GMT"
-                                      timeZone: [NSTimeZone timeZoneWithName: @"GMT"]
-                                        locale: nil];
+    static NSDateFormatter* formatter = nil;
+    if (! formatter) {
+        formatter = [[NSDateFormatter alloc] init];
+        // English names and the Gregorian calendar whatever the user's settings.
+        [formatter setLocale: [NSLocale localeWithLocaleIdentifier: @"en_US_POSIX"]];
+        [formatter setTimeZone: [NSTimeZone timeZoneForSecondsFromGMT: 0]];
+        [formatter setDateFormat: @"EEE, dd MMM yyyy HH:mm:ss 'GMT'"];
+    }
+    return [formatter stringFromDate: self];
 }
 @end
 
@@ -326,7 +333,7 @@ static NSString* alertMessageFromHTML(NSString* html)
     }
     
     OGRegularExpressionMatch* match;
-    if (match = [p1 matchInString: html]) {
+    if ((match = [p1 matchInString: html])) {
         return [p2 replaceAllMatchesInString: [match substringAtIndex: 1] 
                                   withString: @"\n"];
     } else {
@@ -340,7 +347,7 @@ static NSString* alertMessageFromHTML(NSString* html)
 
 - (void) addMessages: (NSArray*) ary
 {
-	int start = [messages_ count];
+	int start = (int) [messages_ count];
 	int i;
 	for (i = 0; i < [ary count]; i++) {
 		NSMutableDictionary* entry = [ary objectAtIndex: i];
@@ -366,7 +373,7 @@ static NSString* alertMessageFromHTML(NSString* html)
     NSData* data = [delegate_ threadLoadCache: self];
     if (data) {
         [self parseData: data];
-        oldCount_ = [messages_ count];    
+        oldCount_ = (int) [messages_ count];    
         // NSLog(@"oldCount = %d", oldCount_);
     }
 }
@@ -485,7 +492,7 @@ static NSString* hostAndPort(NSURL* url)
 
 - (int) count
 {
-    return [messages_ count];
+    return (int) [messages_ count];
 }
 
 - (int) newCount
@@ -708,7 +715,7 @@ didCompleteWithError: (NSError*) error
         isUpdating_ = YES;
     }
     
-    oldCount_ = [messages_ count];
+    oldCount_ = (int) [messages_ count];
     if (oldCount_ == 0) {
         [self loadCache];
     }
@@ -757,7 +764,7 @@ didCompleteWithError: (NSError*) error
     
     regex = [OGRegularExpression regularExpressionWithString:@"<!-- 2ch_X:([a-z]+) -->"];
     NSString* name = nil;    
-    if (match = [regex matchInString: content]) {
+    if ((match = [regex matchInString: content])) {
         name = [match substringAtIndex: 1];
     }
     
@@ -784,7 +791,7 @@ didCompleteWithError: (NSError*) error
     regex = [OGRegularExpression regularExpressionWithString:@"<title>(.*?)</title>"
                                                      options: OgreIgnoreCaseOption];
     NSString* title = nil;
-    if (match = [regex matchInString: content]) {
+    if ((match = [regex matchInString: content])) {
         title = [[match substringAtIndex: 1] retain];
         // NSLog(@"title = %@", title);
     }

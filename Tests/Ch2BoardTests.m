@@ -73,7 +73,7 @@
                 status = [[menuState objectForKey: @"status"] integerValue];
                 body = [[[menuState objectForKey: @"body"] retain] autorelease];
             }
-            return [SFTestHTTPResponse responseWithStatus: status headers: type body: body];
+            return [SFTestHTTPResponse responseWithStatus: (int) status headers: type body: body];
         } else if ([[request path] isEqualToString: @"/slow/bbsmenu.html"]) {
             [NSThread sleepForTimeInterval: 1.0];
             return [SFTestHTTPResponse responseWithStatus: 200 headers: type body: menu];
@@ -209,7 +209,7 @@
 
     NSDictionary* hobby = [categories objectAtIndex: 1];
     XCTAssertEqualObjects([hobby objectForKey: @"title"], @"趣味");
-    XCTAssertEqual([[hobby objectForKey: @"children"] count], (NSUInteger) 1);
+    XCTAssertEqual([(NSArray*) [hobby objectForKey: @"children"] count], (NSUInteger) 1);
 }
 
 - (void) testUnreachableBoardTreeReportsAnError
@@ -219,7 +219,7 @@
         [NSURL URLWithString: @"http://127.0.0.1:9/bbsmenu.html"]] autorelease];
     NSError* error = [self updateTree: tree];
     XCTAssertEqualObjects([error domain], NSURLErrorDomain);
-    XCTAssertEqual([[[tree tree] objectForKey: @"children"] count], (NSUInteger) 0);
+    XCTAssertEqual([(NSArray*) [[tree tree] objectForKey: @"children"] count], (NSUInteger) 0);
 }
 
 - (void) testFailedBoardTreeUpdateKeepsTheList
@@ -253,7 +253,7 @@
     // Give the reply time to arrive (the server waits 1 second).
     SFTestWaitFor(2, ^BOOL { return called; });
     XCTAssertFalse(called);
-    XCTAssertEqual([[[tree tree] objectForKey: @"children"] count], (NSUInteger) 0);
+    XCTAssertEqual([(NSArray*) [[tree tree] objectForKey: @"children"] count], (NSUInteger) 0);
 }
 
 - (void) testUnreachableBoardTellsTheDelegate

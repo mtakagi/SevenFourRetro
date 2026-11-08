@@ -56,7 +56,7 @@
         range = [[root objectForKey: @"title"] rangeOfString: keyword
                                                      options: NSCaseInsensitiveSearch];
         if (range.location != NSNotFound) {
-            int row = [outlineView rowForItem: root];
+            NSInteger row = [outlineView rowForItem: root];
             [outlineView selectRowIndexes: [NSIndexSet indexSetWithIndex: row]
                      byExtendingSelection: true];
             found |= YES;
@@ -159,7 +159,7 @@
     return children != nil;
 }
 
-- (int) outlineView: (NSOutlineView*) view
+- (NSInteger) outlineView: (NSOutlineView*) view
     numberOfChildrenOfItem: (id) parent
 {
     if (! parent) {
@@ -170,7 +170,7 @@
 }
 
 - (id) outlineView: (NSOutlineView*) view
-             child: (int) index ofItem: (id) parent
+             child: (NSInteger) index ofItem: (id) parent
 {
     if (! parent) {
         parent = [delegate_ boardTree];

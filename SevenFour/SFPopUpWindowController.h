@@ -1,10 +1,10 @@
 #import <Cocoa/Cocoa.h>
-#import <WebKit/WebView.h>
+#import <WebKit/WebKit.h>
 
 @class SFThread;
 @class SFThreadView;
 
-@interface SFPopUpWindowController : NSWindowController {
+@interface SFPopUpWindowController : NSWindowController <WebFrameLoadDelegate> {
     IBOutlet SFThreadView* threadView;
     BOOL loaded_;
 }

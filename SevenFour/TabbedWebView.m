@@ -10,11 +10,10 @@
 		   fraction: (float) fraction;
 @end
 
-enum {
-    TAB_HEIGHT = 24,
-    TAB_WIDTH_MAX = 250,
-    TAB_WIDTH_MIN = 50,
-};
+// Sizes in points; CGFloat so they mix with view coordinates.
+static const CGFloat TAB_HEIGHT = 24;
+static const CGFloat TAB_WIDTH_MAX = 250;
+static const CGFloat TAB_WIDTH_MIN = 50;
 static NSImage* TAB_BACKGROUND = nil;
 static NSImage* TAB_CLOSE_ACTIVE = nil;
 static NSImage* TAB_CLOSE_INACTIVE = nil;
@@ -41,17 +40,20 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
                                           tabWidth_ - 8, TAB_HEIGHT)
                      fromRect: NSMakeRect(4, 0, 4, TAB_HEIGHT)
                      fraction: 1.0];
-        [TAB_BACKGROUND dissolveToPoint: NSMakePoint(tabWidth_ * i, [self frame].size.height - rect.size.height)
+        [TAB_BACKGROUND drawAtPoint: NSMakePoint(tabWidth_ * i, [self frame].size.height - rect.size.height)
                           fromRect: NSMakeRect(0, 0, 4, TAB_HEIGHT)
+                          operation: NSCompositingOperationSourceOver
                           fraction: 1.0];
-        [TAB_BACKGROUND dissolveToPoint: NSMakePoint(tabWidth_ * (i+1) - 4, [self frame].size.height - rect.size.height)
+        [TAB_BACKGROUND drawAtPoint: NSMakePoint(tabWidth_ * (i+1) - 4, [self frame].size.height - rect.size.height)
                           fromRect: NSMakeRect(8, 0, 4, TAB_HEIGHT)
+                          operation: NSCompositingOperationSourceOver
                           fraction: 1.0];
     } else {
         int w = tabWidth_;
         if (i+1 != selected_) {
-            [TAB_BACKGROUND dissolveToPoint: NSMakePoint(tabWidth_ * (i+1) - 4, [self frame].size.height - rect.size.height)
+            [TAB_BACKGROUND drawAtPoint: NSMakePoint(tabWidth_ * (i+1) - 4, [self frame].size.height - rect.size.height)
                               fromRect: NSMakeRect(16, 0, 4, TAB_HEIGHT)
+                              operation: NSCompositingOperationSourceOver
                               fraction: 1.0];
             w -= 4;
         }
@@ -139,7 +141,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
 - (int) numberOfWebViews
 {
     NSArray* ary = [self webViews];
-    return [ary count];
+    return (int) [ary count];
 }
 
 - (int) indexOfWebView: (WebView*) wv
@@ -195,7 +197,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
     // Indicator
     NSProgressIndicator* indicator;
     indicator = [[NSProgressIndicator alloc] init];
-    [indicator setStyle: NSProgressIndicatorSpinningStyle];
+    [indicator setStyle: NSProgressIndicatorStyleSpinning];
     [indicator setDisplayedWhenStopped: NO];
     
 	[self addSubview: indicator];    
@@ -206,7 +208,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
     button = [[NSButton alloc] init];
     [button setTarget: self];
     [button setAction: @selector(closeTab:)];
-    [button setButtonType: NSMomentaryChangeButton];
+    [button setButtonType: NSButtonTypeMomentaryChange];
     [button setBordered: NO];
     [button setImagePosition: NSImageOnly];
     [button setAutoresizingMask: NSViewNotSizable];
@@ -309,7 +311,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
 
 - (IBAction) closeTab: (id) sender
 {
-    int index = [sender tag];
+    int index = (int) [sender tag];
     [self removeWebView: [self webViewAtIndex: index]];
 }
 
@@ -418,8 +420,9 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
 			srcRect.size.width = (rect.origin.x + srcRect.size.width) - (dstRect.origin.x + dstRect.size.width);
 		}
 		
-		[self dissolveToPoint: rect.origin
+		[self drawAtPoint: rect.origin
 					 fromRect: srcRect 
+					 operation: NSCompositingOperationSourceOver
 					 fraction: fraction];
 	}
 	return YES;
