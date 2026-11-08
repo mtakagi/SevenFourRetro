@@ -19,10 +19,59 @@
     }
 }
 
+#pragma mark SFTabContent
+
+- (NSString*) tabTitle
+{
+    return [self mainFrameTitle];
+}
+
+- (BOOL) isTabLoading
+{
+    float progress = [self estimatedProgress];
+    return progress != 0.0f && progress != 1.0f;
+}
+
+// WebKit's progress notifications (the title is set by the time a load
+// finishes, #45) and the thread updates, told to the tab bar.
+- (void) tabContentDidChange: (NSNotification*) n
+{
+    [[NSNotificationCenter defaultCenter] postNotificationName: SFTabContentDidChangeNotification
+                                                        object: self];
+}
+
+- (void) setFragmentLoading: (BOOL) flag
+{
+    [self willChangeValueForKey: @"estimatedProgress"];
+    isFragmentLoading_ = flag;
+    [self didChangeValueForKey: @"estimatedProgress"];
+    [self tabContentDidChange: nil];
+}
+
+#pragma mark Page
+
+- (NSURL*) pageURL
+{
+    return [[[[self mainFrame] dataSource] request] URL];
+}
+
+- (BOOL) findString: (NSString*) string forward: (BOOL) forward
+{
+    return [self searchFor: string direction: forward caseSensitive: NO wrap: NO];
+}
+
+// The frame view fills the view (the tab bar sizes it, #27).
+- (void) setFrameSize: (NSSize) size
+{
+    [super setFrameSize: size];
+    [[[self mainFrame] frameView] setFrameSize: size];
+}
+
 - (void) setThread: (SFThread*) t
 {
 	NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
-	[center removeObserver: self];
+	// Only the thread's notification: the progress ones stay.
+	[center removeObserver: self name: SFThreadDidFinishUpdatingNotification object: nil];
 	
 	[thread_ release];
 	thread_ = nil;
@@ -51,9 +100,7 @@
 
 - (void) updateThread
 {
-    [self willChangeValueForKey: @"estimatedProgress"];
-    isFragmentLoading_ = YES;
-    [self didChangeValueForKey: @"estimatedProgress"];
+    [self setFragmentLoading: YES];
 
 	[thread_ update];
 }
@@ -126,9 +173,7 @@
 	
 	visibleCount_ = [th count];
 
-    [self willChangeValueForKey: @"estimatedProgress"];
-    isFragmentLoading_ = NO;
-    [self didChangeValueForKey: @"estimatedProgress"];
+    [self setFragmentLoading: NO];
 }
 
 - (BOOL) goBack
@@ -161,6 +206,20 @@
                       groupName: nil];
     visibleCount_ = 0;
     isFragmentLoading_ = NO;
+
+    NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
+    NSArray* names = [NSArray arrayWithObjects:
+        WebViewProgressStartedNotification,
+        WebViewProgressEstimateChangedNotification,
+        WebViewProgressFinishedNotification, nil];
+    NSEnumerator* e = [names objectEnumerator];
+    NSString* name;
+    while ((name = [e nextObject]) != nil) {
+        [center addObserver: self
+                   selector: @selector(tabContentDidChange:)
+                       name: name
+                     object: self];
+    }
 
     return self;
 }

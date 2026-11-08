@@ -1,7 +1,6 @@
 /* This file is not copyrighted and may be used freely. */
 
 #import "TabbedWebView.h"
-#import <WebKit/WebKit.h>
 #import "NSImage+SFSymbols.h"
 
 @interface NSImage(TileInRect)
@@ -18,19 +17,18 @@ static NSImage* TAB_BACKGROUND = nil;
 static NSImage* TAB_CLOSE_ACTIVE = nil;
 static NSImage* TAB_CLOSE_INACTIVE = nil;
 
+NSString* SFTabContentDidChangeNotification = @"SFTabContentDidChangeNotification";
+
 @implementation TabbedWebView
-// Redraws the tabs, whose labels and spinners show each page's title and
-// progress. The title can be set after the last progress change, so the
-// tabs are redrawn when a load starts and finishes as well; otherwise a tab
-// could keep "Untitled" until something else redrew it (#45).
-- (void) estimateChanged: (NSNotification*) n
+// A tab's title or loading state changed: redraw the labels and spinners.
+- (void) contentDidChange: (NSNotification*) n
 {
     [self setNeedsDisplay: YES];
 }
 
-- (void) drawWithWebViewAtIndex: (int) i
+- (void) drawWithContentAtIndex: (int) i
 {
-    WebView* view = (WebView*) [[self webViews] objectAtIndex: i];
+    NSView<SFTabContent>* view = [[self contents] objectAtIndex: i];
     
     NSRect rect;
 
@@ -67,7 +65,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
                      fraction: 1.0];
     }
     
-    NSString* title = [view valueForKey: @"mainFrameTitle"];
+    NSString* title = [view tabTitle];
     if (!title || [title length] == 0) {
         title = @"Untitled";
     }
@@ -82,7 +80,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
         [button setImage: TAB_CLOSE_INACTIVE];
     }
 
-    if ([self numberOfWebViews] > 1) {
+    if ([self numberOfContents] > 1) {
         [button setHidden: NO];
 
         rect.size.width = 16;
@@ -103,10 +101,10 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
     rect.origin.y = [self frame].size.height - TAB_HEIGHT + 5;
     
     [indicator setFrame: rect];
-    if ([view estimatedProgress] == 0.0 || [view estimatedProgress] == 1.0) {
-        [indicator stopAnimation: nil];
-    } else {
+    if ([view isTabLoading]) {
         [indicator startAnimation: nil];
+    } else {
+        [indicator stopAnimation: nil];
     }
 
     // Text
@@ -126,7 +124,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
     
     rect.size.width = tabWidth_ - 48;
     rect.size.height = TAB_HEIGHT;
-    if ([self numberOfWebViews] > 1) {
+    if ([self numberOfContents] > 1) {
         rect.origin.x = (tabWidth_ * i) + 24;
     } else {
         rect.origin.x = (tabWidth_ * i) + 8;
@@ -137,66 +135,47 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
     [str release];
 }
 
-- (NSArray*) webViews
+- (NSArray*) contents
 {
-	return webViews_;
+	return contents_;
 }
 
-- (int) numberOfWebViews
+- (int) numberOfContents
 {
-    NSArray* ary = [self webViews];
-    return (int) [ary count];
+    return (int) [contents_ count];
 }
 
-- (int) indexOfWebView: (WebView*) wv
+- (int) indexOfContent: (NSView<SFTabContent>*) content
 {
-    NSArray* ary = [self webViews];
-    
-    int i;
-    for (i = 0; i < [ary count]; i++) {
-        if ([ary objectAtIndex: i] == wv) {
-            return i;
-        }
-    }
-    
-    return -1;
+    NSUInteger i = [contents_ indexOfObjectIdenticalTo: content];
+    return i == NSNotFound ? -1 : (int) i;
 }
 
+// The selected tab's view fills the area under the tab bar.
 - (void) setFrame: (NSRect) frame
 {
-	WebView* wv = [self selectedWebView];
-    
     NSSize size = frame.size;
     size.height -= TAB_HEIGHT;
-    
-    [wv setFrameSize: size];
-    WebFrameView* frameView = [[wv mainFrame] frameView];
-    [frameView setFrameSize: size];
-    
-#if 0
-    NSView* docView = [frameView documentView];
-    size.height = [docView frame].size.height;
-    [docView setFrameSize: size];
-#endif
+    [[self selectedContent] setFrameSize: size];
     
     [super setFrame: frame];
 }
 
-- (void) addWebView: (WebView*) wv
+- (void) addContent: (NSView<SFTabContent>*) content
 {
 	// Add New
-    [webViews_ addObject: wv];
-	[self addSubview: wv];
+    [contents_ addObject: content];
+	[self addSubview: content];
     
-	[self selectWebViewAtIndex: [self numberOfWebViews] - 1];
+	[self selectContentAtIndex: [self numberOfContents] - 1];
 	
 	NSRect frame;
 	frame.origin = NSMakePoint(0, 0);
 	frame.size = [self frame].size;
 	frame.size.height -= TAB_HEIGHT;
-	[wv setFrame: frame];
+	[content setFrame: frame];
 	
-    [wv setAutoresizingMask: NSViewNotSizable];
+    [content setAutoresizingMask: NSViewNotSizable];
     
     // Indicator
     NSProgressIndicator* indicator;
@@ -206,6 +185,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
     
 	[self addSubview: indicator];    
     [indicators_ addObject: indicator];
+    [indicator release];
     
     // Button
     NSButton* button;
@@ -220,37 +200,26 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
     
 	[self addSubview: button];
     [buttons_ addObject: button];
+    [button release];
     
-#if 0
-	[wv addObserver: self
-		 forKeyPath: @"mainFrameTitle" 
-			options: NSKeyValueObservingOptionNew
-			context: nil];
-#endif
-    
-    NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
-    NSArray* names = [NSArray arrayWithObjects:
-        WebViewProgressStartedNotification,
-        WebViewProgressEstimateChangedNotification,
-        WebViewProgressFinishedNotification, nil];
-    NSEnumerator* e = [names objectEnumerator];
-    NSString* name;
-    while ((name = [e nextObject]) != nil) {
-        [center addObserver: self
-                   selector: @selector(estimateChanged:)
-                       name: name
-                     object: wv];
-    }
+    [[NSNotificationCenter defaultCenter] addObserver: self
+                                             selector: @selector(contentDidChange:)
+                                                 name: SFTabContentDidChangeNotification
+                                               object: content];
 	
 	[self setNeedsDisplay: YES];
 }
 
-- (void) removeWebView: (WebView*) view
+- (void) removeContent: (NSView<SFTabContent>*) content
 {
-	[[NSNotificationCenter defaultCenter] removeObserver: self name: nil object: view];
-	[view removeFromSuperview];
-    [webViews_ removeObject: view];
+	[[NSNotificationCenter defaultCenter] removeObserver: self
+	                                                name: SFTabContentDidChangeNotification
+	                                              object: content];
+	[content removeFromSuperview];
+    [contents_ removeObject: content];
     
+    // The spinners and buttons are laid out by index when drawn, so the
+    // last ones go.
     NSProgressIndicator* indicator = (NSProgressIndicator*) [indicators_ lastObject];
     [indicator stopAnimation: nil];
     [indicator removeFromSuperview];
@@ -260,31 +229,30 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
     [button removeFromSuperview];
     [buttons_ removeObject: button];
     
-	if (selected_ < [self numberOfWebViews]) {
-		[self selectWebViewAtIndex: selected_];
+	if (selected_ < [self numberOfContents]) {
+		[self selectContentAtIndex: selected_];
 	} else {
-		[self selectWebViewAtIndex: [self numberOfWebViews] - 1];
+		[self selectContentAtIndex: [self numberOfContents] - 1];
 	}
     
 	[self setNeedsDisplay: YES];
 }
 
-- (void) selectWebViewAtIndex: (int) index
+- (void) selectContentAtIndex: (int) index
 {
 	selected_ = index;
 	
-	NSArray* ary = [self webViews];
 	int i;
-	for (i = 0; i < [ary count]; i++) {
-		WebView* wv = [ary objectAtIndex: i];
+	for (i = 0; i < [self numberOfContents]; i++) {
+		NSView<SFTabContent>* content = [contents_ objectAtIndex: i];
 		if (i == selected_) {
 			[delegate_ tabbedWebView: self
-					didSelectWebView: wv];
+					didSelectContent: content];
 
-			[wv setHidden: NO];
-			[[self window] makeFirstResponder: wv];
+			[content setHidden: NO];
+			[[self window] makeFirstResponder: content];
 		} else {
-			[wv setHidden: YES];
+			[content setHidden: YES];
 		}
 	}
     
@@ -292,23 +260,23 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
 	[self setNeedsDisplay: YES];
 }
 
-- (void) selectWebView: (WebView*) wv
+- (void) selectContent: (NSView<SFTabContent>*) content
 {
-	[self selectWebViewAtIndex: [self indexOfWebView: wv]];
+	[self selectContentAtIndex: [self indexOfContent: content]];
 }
 
-- (WebView*) selectedWebView
+- (NSView<SFTabContent>*) selectedContent
 {
-	if ([[self webViews] count] == 0) {
+	if ([contents_ count] == 0) {
 		return nil;
 	}
 	
-	return [[self webViews] objectAtIndex: selected_]; 
+	return [contents_ objectAtIndex: selected_]; 
 }
 
-- (WebView*) webViewAtIndex: (unsigned) index
+- (NSView<SFTabContent>*) contentAtIndex: (unsigned) index
 {
-    return [[self webViews] objectAtIndex: index];
+    return [contents_ objectAtIndex: index];
 }
 
 - (void) setDelegate: (NSObject*) delegate
@@ -325,7 +293,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
 - (IBAction) closeTab: (id) sender
 {
     int index = (int) [sender tag];
-    [self removeWebView: [self webViewAtIndex: index]];
+    [self removeContent: [self contentAtIndex: index]];
 }
 
 #pragma mark Override
@@ -349,7 +317,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
                                                           size: NSMakeSize(16, 16)] retain];
     }
     
-    webViews_ = [[NSMutableArray alloc] init];
+    contents_ = [[NSMutableArray alloc] init];
     indicators_ = [[NSMutableArray alloc] init];
     buttons_ = [[NSMutableArray alloc] init];
 	
@@ -362,7 +330,8 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
 
 - (void) dealloc
 {
-    [webViews_ release];
+    [[NSNotificationCenter defaultCenter] removeObserver: self];
+    [contents_ release];
     [indicators_ release];
     [buttons_ release];
 	
@@ -376,7 +345,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
 
 - (void) drawRect: (NSRect) allRect
 {	
-	NSArray* ary = [self webViews];
+	NSArray* ary = [self contents];
     
 	tabWidth_ = TAB_WIDTH_MAX;
 	while (tabWidth_ * [ary count] > [self frame].size.width) {
@@ -388,7 +357,7 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
 		
 	int i;
 	for (i = 0; i < [ary count]; i++) {
-        [self drawWithWebViewAtIndex: i];
+        [self drawWithContentAtIndex: i];
 	}
 	[TAB_BACKGROUND tileInRect: NSMakeRect(tabWidth_ * i,  [self frame].size.height - TAB_HEIGHT,
 									  [self frame].size.width - tabWidth_ * i, 24)
@@ -401,19 +370,9 @@ static NSImage* TAB_CLOSE_INACTIVE = nil;
 	NSPoint mouse = [self convertPoint: [event locationInWindow]
 							  fromView: nil];
 	int n = mouse.x / tabWidth_;
-	if (n < [[self webViews] count]) {
-		[self selectWebViewAtIndex: n];
+	if (n < [self numberOfContents]) {
+		[self selectContentAtIndex: n];
 	}
-}
-
-- (void) observeValueForKeyPath: (NSString*) path 
-                       ofObject: (id) object
-                         change: (NSDictionary*) change
-                        context: (void*) context
-{
-    if ([path isEqualToString: @"mainFrameTitle"]) {
-        [self setNeedsDisplay: YES];
-    }
 }
 
 @end
