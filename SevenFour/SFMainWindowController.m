@@ -69,40 +69,26 @@ static SFMainWindowController* activeController_;
 - (void) popupMessage: (SFThread*) thread
 			  numbers: (NSArray*) ary
 {
-    SFPopUpWindowController* wc;
-    wc = [[SFPopUpWindowController alloc] initWithWindowNibName: @"PopUpWindow"];
-    
-    NSRect frame = [[wc window] frame];
+    // Under the mouse, as wide as the tabs; the height follows the page.
+    NSRect frame = NSMakeRect(0, 0, [tabbedWebView frame].size.width, 107);
     frame.origin = [NSEvent mouseLocation];
-#if 0
-    frame.origin.y += 20;
-#else
     frame.origin.x -= 10;
     frame.origin.y -= 10;
-#endif
-    frame.size.width = [tabbedWebView frame].size.width;
-	[[wc window] setFrame: frame display: NO];
-	
-    [[wc webView] setFrameLoadDelegate: wc];
-    [[wc webView] setUIDelegate: self];
-	[[wc webView] setPolicyDelegate: self];
-		
-	// Load
+
+    SFPopUpWindowController* wc = [[SFPopUpWindowController alloc] initWithFrame: frame];
+    [[wc pageView] setPageDelegate: self];
+
+    // Relative links (>>N is #N) resolve against the thread's page, so
+    // hovering them pops up more messages of the thread.
     SFThreadHTMLFormatter* formatter = [[SFThreadHTMLFormatter alloc] init];
-	NSString* html = [formatter formatThread: thread numbers: ary];
-	[[[wc webView] mainFrame] loadHTMLString: html
-									 baseURL: nil];
+    NSString* html = [formatter formatThread: thread numbers: ary];
+    [formatter release];
+    [[wc pageView] loadHTMLString: html baseURL: [[self selectedThreadView] pageURL]];
 
     [[self document] addWindowController: wc];
     [wc release];
-	    
-    [[wc window] makeKeyAndOrderFront: nil];
-#if 0
-    [[self window] makeFirstResponder: [tabbedWebView selectedContent]];
-    [[self window] makeKeyWindow];
-    
-    latestPopUpWindow_ = [wc window];
-#endif
+
+    [[wc window] orderFront: nil];
 }
 
 - (void) popupMessage: (SFThread*) thread
@@ -200,8 +186,7 @@ static SFMainWindowController* activeController_;
 		return;
 	}
 	
-	if (([[url scheme] isEqualTo: @"sevenfour"] && (! [[url host] isEqualTo: @"internal"])) || 
-		[[url scheme] isEqualTo: @"applewebdata"]) {
+	if ([[url scheme] isEqualTo: @"sevenfour"] && (! [[url host] isEqualTo: @"internal"])) {
 		SFThreadView* view = [self selectedThreadView];
 		[self popupMessage: [view thread]
 					 range: [url fragment]];
@@ -362,10 +347,11 @@ static SFMainWindowController* activeController_;
 - (IBAction) newTab: (id) sender
 {
     SFThreadView* view = [[SFThreadView alloc] initWithFrame: [tabbedWebView frame]];
-    // Links, hovering and loading come back through SFThreadViewDelegate.
+    // Links, hovering and loading come back through SFPageViewDelegate and
+    // SFThreadViewDelegate.
     // Keep the view's own responder chain: overriding it once made a tab's
     // first page unable to scroll (#44).
-    [view setThreadDelegate: self];
+    [view setPageDelegate: self];
 
     [tabbedWebView addContent: view];
     [view release];    
@@ -572,7 +558,6 @@ static SFMainWindowController* activeController_;
     toolbarItems_ = [[NSDictionary alloc] initWithContentsOfFile: path];    
 	
 	activeURL_ = nil;
-    latestPopUpWindow_ = nil;
 	
     NSLog(@"SFMainWC %p - init", self);
     
@@ -665,7 +650,7 @@ static SFMainWindowController* activeController_;
                    name: SFBoardTreeDidChangeNotification
                  object: nil];
     
-    // Tabbed WebView
+    // Thread tabs
     [self newTab: nil];
 	[tabbedWebView setDelegate: self];
     
@@ -927,7 +912,7 @@ static SFMainWindowController* activeController_;
 // Decides a link or load in a page: YES lets the page load url. Internal
 // actions (pop-up by ID, post to a message), threads (opened in a tab) and
 // other web pages (the browser) are handled here instead. Used by the thread
-// views and the WebKit 1 pop-up window.
+// views and the pop-up windows.
 - (BOOL) shouldLoadURL: (NSURL*) url inBackground: (BOOL) background
 {
     if ([[url scheme] isEqualTo: @"sevenfour"]) {
@@ -936,7 +921,7 @@ static SFMainWindowController* activeController_;
 			return NO;
 		}
 		return YES;
-    } else if ([[url scheme] isEqualTo: @"applewebdata"] || [[url scheme] isEqualTo: @"about"]) {
+    } else if ([[url scheme] isEqualTo: @"about"]) {
 		return YES;
     } else if (SFIsWebURL(url)) {
 		SFThread* th = [SFDocument threadWithURL: url];
@@ -968,22 +953,23 @@ static SFMainWindowController* activeController_;
     }
 }
 
-// SFThreadView delegate
-- (BOOL) threadView: (SFThreadView*) view
-      shouldLoadURL: (NSURL*) url
-       inBackground: (BOOL) background
+// SFPageView delegate: the thread views and the pop-up windows.
+- (BOOL) pageView: (SFPageView*) view
+    shouldLoadURL: (NSURL*) url
+     inBackground: (BOOL) background
 {
 	return [self shouldLoadURL: url inBackground: background];
 }
 
-- (void) threadView: (SFThreadView*) view
-       mouseOverURL: (NSURL*) url
-              label: (NSString*) label
-             option: (BOOL) option
+- (void) pageView: (SFPageView*) view
+     mouseOverURL: (NSURL*) url
+            label: (NSString*) label
+           option: (BOOL) option
 {
 	[self hoverURL: url label: label option: option];
 }
 
+// SFThreadView delegate
 - (void) threadViewDidStartLoading: (SFThreadView*) view
 {
 	if (view == [self selectedThreadView]) {
@@ -997,35 +983,6 @@ static SFMainWindowController* activeController_;
 		[self updatePageURL: [view pageURL]];
 		[[self window] makeFirstResponder: view];
 	}
-}
-
-// The WebKit 1 pop-up window (SFPopUpWindowController) until it moves to
-// WKWebView too.
-- (void) webView: (WebView*) wv decidePolicyForNavigationAction: (NSDictionary*) action
-         request: (NSURLRequest*) req
-           frame: (WebFrame*) frame
-decisionListener: (id<WebPolicyDecisionListener>) listener
-{
-	NSUInteger flags = [[action objectForKey: WebActionModifierFlagsKey] unsignedIntegerValue];
-	if ([self shouldLoadURL: [req URL] inBackground: (flags & NSEventModifierFlagCommand) != 0]) {
-		[listener use];
-	} else {
-		[listener ignore];
-	}
-}
-
-- (void) webView: (WebView*) wv
- runJavaScriptAlertPanelWithMessage: (NSString*) message
-{
-	NSLog(@"JavaScript - alert: %@", message);
-}
-
-- (void) webView: (WebView*) wv mouseDidMoveOverElement: (NSDictionary*) info
-   modifierFlags: (NSUInteger) flags
-{
-	[self hoverURL: [info objectForKey: WebElementLinkURLKey]
-	         label: [info objectForKey: WebElementLinkLabelKey]
-	        option: (flags & NSEventModifierFlagOption) != 0];
 }
 
 // TabbedWebView delegate

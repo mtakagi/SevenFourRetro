@@ -3,13 +3,11 @@
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 
-// Serves sevenfour:// URLs to the thread views (WKWebView, #28): a thread
+// Serves sevenfour:// URLs to the pages (SFPageView, WKWebView, #28): a thread
 // page (sevenfour://host/test/read.cgi/BOARD/NUMBER[/RANGE] or the dat
 // form) after updating the thread, and the skin's files
 // (sevenfour://skin/...). WebKit calls it on the main thread, where the
 // threads live.
-//
-// The WebKit 1 pop-up window still loads the skin through SFURLProtocol.
 @interface SFThreadSchemeHandler : NSObject <WKURLSchemeHandler> {
     // Tasks waiting for their thread to finish updating, with the thread,
     // the formatter and the observer of each.

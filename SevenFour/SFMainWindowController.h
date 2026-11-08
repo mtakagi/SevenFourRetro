@@ -1,4 +1,3 @@
-#import <WebKit/WebKit.h>
 #import <Cocoa/Cocoa.h>
 
 #import "SearchableArrayController.h"
@@ -11,7 +10,7 @@
 @class SFThread;
 @class SFThreadFactory;
 
-@interface SFMainWindowController : NSWindowController <NSWindowDelegate, NSToolbarDelegate, NSToolbarItemValidation, NSTableViewDataSource, WebPolicyDelegate, WebUIDelegate> {
+@interface SFMainWindowController : NSWindowController <NSWindowDelegate, NSToolbarDelegate, NSToolbarItemValidation, NSTableViewDataSource> {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"   // NSDrawer: #29
     IBOutlet NSDrawer* drawer;
@@ -41,7 +40,6 @@
     NSDictionary* toolbarItems_;
     SFImageWindowController* imageWindowController_;
     SFSidePaneController* sidePaneController_;
-    NSWindow* latestPopUpWindow_;
 	
 	NSURL* activeURL_;
     NSMutableArray* tableColumns_;
