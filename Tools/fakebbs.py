@@ -165,8 +165,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not thread:
             return
         n = thread[2].count("\n") + 1
-        text = html.escape(form.get("MESSAGE", "")).replace("\n", "<br>")
-        thread[2] += message(form.get("FROM") or "名無しさん", form.get("mail", ""), 8, n, "post", text)
+        # Escaped like bbs.cgi does, so "<>" in any field can't split the DAT line.
+        def field(value):
+            return html.escape(value).replace("\r", "").replace("\n", " ")
+        text = html.escape(form.get("MESSAGE", "")).replace("\r", "").replace("\n", "<br>")
+        thread[2] += message(field(form.get("FROM", "")) or "名無しさん", field(form.get("mail", "")),
+                             8, n, "post", text)
         if form.get("mail") != "sage":
             board.remove(thread)
             board.insert(0, thread)
