@@ -53,6 +53,16 @@
             return [SFTestHTTPResponse responseWithStatus: 200 headers: type body: subject];
         } else if ([[request path] isEqualToString: @"/test/subject.txt"]) {
             return [SFTestHTTPResponse responseWithStatus: 200 headers: type body: subject];
+        } else if ([[request path] isEqualToString: @"/badbyte/subject.txt"]) {
+            // 0xFF in the first title, 髙 (an IBM extension) in the second.
+            NSMutableData* body = [NSMutableData dataWithData: SFTestShiftJIS(@"1.dat<>A")];
+            const unsigned char bad = 0xFF;
+            [body appendBytes: &bad length: 1];
+            [body appendData: SFTestShiftJIS(@"B (2)\n2.dat<>")];
+            const unsigned char taka[] = { 0xFB, 0xFC };
+            [body appendBytes: taka length: sizeof(taka)];
+            [body appendData: SFTestShiftJIS(@"橋さんのスレ (3)\n")];
+            return [SFTestHTTPResponse responseWithStatus: 200 headers: type body: body];
         } else if ([[request path] isEqualToString: @"/broken/subject.txt"]) {
             return [SFTestHTTPResponse responseWithStatus: 200 headers: type
                                                      body: SFTestShiftJIS(@"1.dat<>レス数なし\nx<>短い (3)\n")];
@@ -157,6 +167,16 @@
     XCTAssertEqualObjects([[board subjectAtIndex: 0] objectForKey: @"subject"], @"レス数なし");
     XCTAssertEqualObjects([[board subjectAtIndex: 0] objectForKey: @"count"], [NSNumber numberWithInt: 0]);
     XCTAssertEqualObjects([[board subjectAtIndex: 1] objectForKey: @"dat"], [NSNumber numberWithInt: 0]);
+}
+
+- (void) testBadByteKeepsTheOtherSubjects
+{
+    Ch2Board* board = [[[Ch2Board alloc] initWithURL:
+        [NSURL URLWithString: @"badbyte/" relativeToURL: [server_ baseURL]]] autorelease];
+    XCTAssertTrue([self updateBoard: board]);
+    XCTAssertEqual([board count], 2u);
+    XCTAssertEqualObjects([[board subjectAtIndex: 0] objectForKey: @"subject"], @"A\uFFFDB ");
+    XCTAssertEqualObjects([[board subjectAtIndex: 1] objectForKey: @"subject"], @"髙橋さんのスレ ");
 }
 
 - (void) testMissingBoardFinishesWithoutSubjects

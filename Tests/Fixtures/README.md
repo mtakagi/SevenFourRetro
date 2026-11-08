@@ -11,3 +11,5 @@
 | `subject.txt` | スレッド一覧。3 スレ。レス数が 1000 のスレを含みます。 |
 | `thread.dat` | DAT。4 レス。ID・BE 付きのレス、`<br>` を含む本文、スレタイ付きの 1 行目を含みます。 |
 | `thread-append.dat` | `thread.dat` の後に続く差分（2 レス）。差分取得（Range）のテストに使います。 |
+
+Shift_JIS のバイト列そのもの（壊れたバイト、途中で切れた文字、CP932 の拡張文字）は、UTF-8 のファイルでは表せないので、テストの中に 16 進で書いています（`Ch2ShiftJISTests.m`、`Ch2BoardTests` の `badbyte/subject.txt`、`Ch2DatParserTests` の `testBadByteInABodyKeepsTheThread`）。

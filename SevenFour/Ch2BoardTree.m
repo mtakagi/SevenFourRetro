@@ -1,6 +1,6 @@
 /* This file is not copyrighted and may be used freely. */
 #import "Ch2BoardTree.h"
-#import "TEC.h"
+#import "Ch2ShiftJIS.h"
 #import <OgreKit/OgreKit.h>
 
 @implementation Ch2BoardTree
@@ -145,10 +145,7 @@ static NSError* Ch2BoardTreeError(NSString* description)
             
             NSString* source = nil;
             if (! failure) {
-                TECConverter* converter;
-                converter = [[TECConverter alloc] initWithEncoding: NSShiftJISStringEncoding];
-                source = [converter convertToString: data];
-                [converter release];
+                source = Ch2StringFromShiftJIS(data);
                 if (source == nil) {
                     failure = Ch2BoardTreeError(@"Failed to convert the board list from Shift_JIS.");
                 }
