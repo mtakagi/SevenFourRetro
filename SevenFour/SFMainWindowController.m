@@ -364,9 +364,11 @@ static SFMainWindowController* activeController_;
     [view setPolicyDelegate: self];
     [view setUIDelegate: self];
 	[view setFrameLoadDelegate: self];
+	// The page's views keep their own responder chain (the document view's
+	// next responder is its scroll view), so scrolling and keys work from
+	// the first page on. Overriding it sent them to the tab view, and a
+	// tab's first page could not scroll (#44).
 
-	[[[[view mainFrame] frameView] documentView] setNextResponder: tabbedWebView];
-	
     [tabbedWebView addWebView: view];
     [view release];    
 }
