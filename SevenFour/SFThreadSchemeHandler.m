@@ -4,6 +4,7 @@
 
 #import "SFThread.h"
 #import "SFThreadHTMLFormatter.h"
+#import "SFThreadView.h"
 #import "SFURLProtocol.h"
 
 @implementation SFThreadSchemeHandler
@@ -91,7 +92,7 @@ static void respond(id<WKURLSchemeTask> task, NSData* data, NSString* type, NSSt
     [pending_ removeObjectIdenticalTo: entry];
 }
 
-- (void) startThreadTask: (id<WKURLSchemeTask>) task
+- (void) startThreadTask: (id<WKURLSchemeTask>) task webView: (WKWebView*) webView
 {
     SFThread* thread;
     NSString* range;
@@ -109,7 +110,7 @@ static void respond(id<WKURLSchemeTask> task, NSData* data, NSString* type, NSSt
 
     // Shown once the thread has been updated, as SFURLProtocol does.
     NSMutableDictionary* entry = [NSMutableDictionary dictionaryWithObjectsAndKeys:
-        task, @"task", thread, @"thread", formatter, @"formatter", nil];
+        task, @"task", thread, @"thread", formatter, @"formatter", webView, @"webView", nil];
     id observer = [[NSNotificationCenter defaultCenter]
         addObserverForName: SFThreadDidFinishUpdatingNotification
                     object: thread
@@ -122,7 +123,14 @@ static void respond(id<WKURLSchemeTask> task, NSData* data, NSString* type, NSSt
         }
         [[e retain] autorelease];
         [self finishEntry: e];
-        NSString* html = [[e objectForKey: @"formatter"] formatThread: [e objectForKey: @"thread"]];
+        SFThread* th = [e objectForKey: @"thread"];
+        // The thread may be updated again before the page has loaded: the
+        // view adds the messages after the ones in this page.
+        WKWebView* view = [e objectForKey: @"webView"];
+        if ([view isKindOfClass: [SFThreadView class]]) {
+            [(SFThreadView*) view setPageCount: [th count]];
+        }
+        NSString* html = [[e objectForKey: @"formatter"] formatThread: th];
         NSData* data = [html dataUsingEncoding: NSUTF8StringEncoding];
         respond(task, data ? data : [NSData data], @"text/html", @"utf-8");
     }];
@@ -139,7 +147,7 @@ static void respond(id<WKURLSchemeTask> task, NSData* data, NSString* type, NSSt
     if ([[[[task request] URL] host] isEqualToString: @"skin"]) {
         [self startSkinTask: task];
     } else {
-        [self startThreadTask: task];
+        [self startThreadTask: task webView: webView];
     }
 }
 

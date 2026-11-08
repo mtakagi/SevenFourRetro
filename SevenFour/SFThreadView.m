@@ -90,6 +90,11 @@ static NSString* const HOVER_SCRIPT =
     threadDelegate_ = delegate;
 }
 
+- (void) setPageCount: (int) count
+{
+    pageCount_ = count;
+}
+
 - (NSURL*) pageURL
 {
     return [self URL];
@@ -172,6 +177,7 @@ static NSString* const HOVER_SCRIPT =
 	[self setThread: [factory threadWithURL: url]];
 
 	visibleCount_ = 0;
+	isPageLoaded_ = NO;
 
 	// The same URL served by SFThreadSchemeHandler, keeping the port (#37).
 	NSURLComponents* c = [NSURLComponents componentsWithURL: url resolvingAgainstBaseURL: YES];
@@ -203,14 +209,18 @@ static NSString* const HOVER_SCRIPT =
 // The thread was updated: add its new messages to the page.
 - (void) threadFinishParsing: (NSNotification*) n
 {
-	SFThread* th = [n object];
-
-	if (visibleCount_ == 0) {
-		// The page is loading and will show them all.
+	if (! isPageLoaded_) {
+		// The page is loading; its new messages are added when it has
+		// loaded (-webView:didFinishNavigation:).
 		[self setFragmentLoading: NO];
 		return;
 	}
+	[self appendMessagesOfThread: [n object]];
+}
 
+// Adds the messages of th after the ones the page shows.
+- (void) appendMessagesOfThread: (SFThread*) th
+{
 	SFThreadHTMLFormatter* formatter = [[SFThreadHTMLFormatter alloc] init];
 	NSMutableString* html = [NSMutableString string];
 	int i;
@@ -254,6 +264,8 @@ decidePolicyForNavigationAction: (WKNavigationAction*) action
 
 - (void) webView: (WKWebView*) webView didStartProvisionalNavigation: (WKNavigation*) navigation
 {
+	isPageLoaded_ = NO;
+	pageCount_ = -1;
 	[threadDelegate_ threadViewDidStartLoading: self];
 }
 
@@ -269,10 +281,17 @@ decidePolicyForNavigationAction: (WKNavigationAction*) action
 - (void) webView: (WKWebView*) webView didFinishNavigation: (WKNavigation*) navigation
 {
 	SFThread* th = [self thread];
-	// The page shows every message the thread had when it was made.
-	visibleCount_ = [th count];
+	// The page shows the messages the thread had when the page was made
+	// (pageCount_), or all of them if that is not known (a page restored
+	// from the history).
+	visibleCount_ = (pageCount_ >= 0 && pageCount_ <= [th count]) ? pageCount_ : [th count];
+	isPageLoaded_ = YES;
 	if (([th count] - [th newCount]) > 0) {
 		[self evaluateJavaScript: @"sevenfour.scrollToNew();" completionHandler: nil];
+	}
+	// Messages the thread got while the page was loading.
+	if (visibleCount_ < [th count]) {
+		[self appendMessagesOfThread: th];
 	}
 	[threadDelegate_ threadViewDidFinishLoading: self];
 }
@@ -325,6 +344,8 @@ createWebViewWithConfiguration: (WKWebViewConfiguration*) configuration
 	hoverHandler_ = [hover retain];
 
     visibleCount_ = 0;
+    pageCount_ = -1;
+    isPageLoaded_ = NO;
     isFragmentLoading_ = NO;
 	[self setNavigationDelegate: self];
 	[self setUIDelegate: self];

@@ -28,7 +28,9 @@
 // A thread shown in a tab, in a WKWebView (#28). Pages come from
 // SFThreadSchemeHandler (sevenfour://). See docs/wkwebview-migration.md.
 @interface SFThreadView : WKWebView <SFTabContent, WKNavigationDelegate, WKUIDelegate> {
-    int visibleCount_;
+    int visibleCount_;    // messages shown in the page
+    int pageCount_;       // messages in the page being loaded, or -1
+    BOOL isPageLoaded_;
 	SFThread* thread_;
     BOOL isFragmentLoading_;
     id threadDelegate_;   // not retained (the owner retains the view)
@@ -44,6 +46,10 @@
 - (void) updateThread;
 // YES from -updateThread until the thread finishes updating.
 - (BOOL) isUpdatingThread;
+
+// Told by SFThreadSchemeHandler: the page being loaded shows the first
+// count messages of the thread.
+- (void) setPageCount: (int) count;
 
 // The URL of the page shown (an internal sevenfour:// URL), or nil.
 - (NSURL*) pageURL;
