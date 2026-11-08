@@ -25,6 +25,10 @@ targets:
   SevenFour:
     type: application
     platform: macOS
+    # Shared scheme: build the app, and run SevenFourTests with `xcodebuild test`.
+    scheme:
+      testTargets:
+        - SevenFourTests
     sources:
       - path: SevenFour
         excludes:
@@ -69,4 +73,56 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""
         ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+  # Offline regression tests (#23). Not hosted in the app: the model code is
+  # compiled into the test bundle, so tests never launch the app or touch
+  # ~/Library/Application Support/SevenFour. Network tests talk to an
+  # in-process HTTP server on 127.0.0.1.
+  SevenFourTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+        excludes:
+          - "Fixtures"
+          - "Fixtures/**"
+      # Synthetic data, copied as Contents/Resources/Fixtures
+      - path: Tests/Fixtures
+        type: folder
+        buildPhase: resources
+      # Code under test
+      - SevenFour/Ch2Board.m
+      - SevenFour/Ch2BoardTree.m
+      - SevenFour/Ch2DatParser.m
+      - SevenFour/Ch2Thread.m
+      - SevenFour/TEC.m
+      - SevenFour/Compat/OgreKit/OgreKit.m
+      - SevenFour/Compat/QuickLite/QuickLite.m
+      - path: SevenFour/Ch2Thread.strings
+        buildPhase: resources
+    dependencies:
+      - sdk: Cocoa.framework
+      - sdk: CoreServices.framework
+      - sdk: libsqlite3.tbd
+    settings:
+      base:
+        PRODUCT_NAME: SevenFourTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.xrea.s74.quux.SevenFourTests
+        GENERATE_INFOPLIST_FILE: YES
+        GCC_PREFIX_HEADER: SevenFour/SevenFour_Prefix.pch
+        GCC_PRECOMPILE_PREFIX_HEADER: YES
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/SevenFour/Compat"
+          - "$(SRCROOT)/SevenFour"
+          - "$(SRCROOT)/Tests"
+        # Same as the app: MRC, no modules
+        CLANG_ENABLE_OBJC_ARC: NO
+        CLANG_ENABLE_MODULES: NO
+        GCC_C_LANGUAGE_STANDARD: gnu99
+        ENABLE_STRICT_OBJC_MSGSEND: NO
+        GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS: NO
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
         ENABLE_USER_SCRIPT_SANDBOXING: NO

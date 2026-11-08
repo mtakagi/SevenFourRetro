@@ -26,6 +26,13 @@ SevenFour/               アプリ本体のソースとリソース
   Skin/                  スレッド表示用 HTML テンプレート（フォルダごと Resources/Skin にコピー）
   Info.plist             アプリの Info.plist
   SevenFour_Prefix.pch   プレフィックスヘッダ
+Tests/                   XCTest の単体テスト（ターゲット SevenFourTests）
+  Fixtures/              テスト用の合成データ（UTF-8）
+  SFTestHTTPServer.*     テスト用のプロセス内 HTTP サーバー
+Tools/
+  fakebbs.py             手動確認用の偽の掲示板サーバー
+  run-app-with-test-home.sh  一時的な HOME でアプリを起動するスクリプト
+.github/workflows/       CI（ビルドとテスト）
 ```
 
 ## ビルド
@@ -57,9 +64,50 @@ lipo -info build/Build/Products/Release/SevenFour.app/Contents/MacOS/SevenFour
 
 - `macos-26` ランナー（Xcode 26 以降）で `xcodegen generate` → Universal の Release ビルド
 - アプリのバイナリに arm64 と x86_64 の両方が含まれていることの確認
+- オフラインの回帰テスト（`xcodebuild test`。下の「テスト」を参照）
 - ビルドしたアプリ（`SevenFour.zip`）を Artifact として 7 日間保存
 
-自動テストはないので、CI で確認できるのはビルドが通ることまでです。ビルド設定を変えるときは、ローカル（Xcode 27）だけでなく CI の Xcode でも通ることを確認してください。
+ビルド設定を変えるときは、ローカル（Xcode 27）だけでなく CI の Xcode でも通ることを確認してください。
+
+## テスト
+
+`Tests/` に XCTest の単体テスト（ターゲット `SevenFourTests`）があります。ネットワークを使わずに数秒で終わります。
+
+```sh
+xcodegen generate
+xcodebuild -project SevenFour.xcodeproj -scheme SevenFour -destination 'platform=macOS' -derivedDataPath build test
+# 1 クラスだけ: -only-testing:SevenFourTests/Ch2ThreadPostTests
+```
+
+- **アプリを起動しないテストです。** テスト対象のコード（`Ch2*.m`、`TEC.m`、互換シム）をテストバンドルに直接コンパイルしています（`project.yml` の `SevenFourTests`）。そのため、`~/Library/Application Support/SevenFour` や設定には触れません。新しいクラスをテストするときは、その `.m` を `project.yml` の `SevenFourTests` の `sources` に追加してください。AppKit の UI（`SF*Controller` など）はこの方式では扱えないので、下の手動確認で見ます。
+- テストも MRC です（ARC 無効）。
+- **通信のテスト**は、テストプロセス内の HTTP サーバー `SFTestHTTPServer`（127.0.0.1 の空きポート）を使います。実際の URL 読み込み（Cookie、Range、リダイレクト）を通しつつ、応答はテストのブロックで組み立てます。テストの前後で 127.0.0.1 の Cookie を消し、`+[Ch2Thread forgetConfirmationFormData]` で確認ページの hidden 値も忘れさせてください。
+- 保存を伴うテスト（DAT のキャッシュ、SQLite）は `SFTestTemporaryDirectory()` の一時ディレクトリを使い、終わったら消します。
+- **合成データ**は `Tests/Fixtures/`（UTF-8）にあります。`SFTestFixtureShiftJIS()` で Shift_JIS にして使います。実在の掲示板・利用者のデータは入れないでください。内容は `Tests/Fixtures/README.md` を参照してください。
+- 主な対象:
+  - `Ch2DatParserTests`: DAT
+  - `Ch2BoardTests`: subject.txt、板一覧
+  - `Ch2ThreadUpdateTests`: DAT の新規取得・差分取得・416・失敗
+  - `Ch2ThreadPostTests`: 書き込み（確認ページの再送、エラー、Shift_JIS）
+  - `QuickLiteTests`: SQLite シム
+
+### 手動での確認（スモークテスト）
+
+UI はアプリを動かして確認します。**実際の掲示板には書き込まないでください。** また、普段使っている HOME で試さないでください。
+
+```sh
+python3 Tools/fakebbs.py --port 8765          # 偽の掲示板（別のターミナルで）
+Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリを起動
+```
+
+- `Tools/fakebbs.py`: 板一覧・subject.txt・DAT（Range 対応）と、5ch 風の書き込み確認（確認ページ、Cookie、hidden 値、`?guid=ON`）を返します。本文に `ERRORTEST` を含めるとエラーページを返します。`--delay 4` で応答を遅らせると、更新アイコンの回転を確認できます。
+- `Tools/run-app-with-test-home.sh`: `HOME` と `CFFIXED_USER_HOME` を一時ディレクトリにしてアプリを起動します。DB・キャッシュ・Cookie・設定はすべてそこに保存されます。
+- 確認する手順:
+  1. 起動して、左ペインに板一覧が出る
+  2. 「テスト板」を選ぶと、スレッド一覧が出る（読み込み中は「板更新」のアイコンが回る）
+  3. スレッドを開く。別のタブでも開き、タブを切り替える
+  4. 「書き込む...」で書き込みウインドウを開き、送信する。確認ダイアログが出て、OK で書き込みが完了する。Cancel では本文が残る
+- 既知の制限: スレッド一覧から開いたスレッドの URL は、内部でポート番号が落ちます（`SFThreadFactory` / `SFURLProtocol`）。そのため、ローカルの偽サーバーではスレッドの本文を取得できません。`Ch2Thread` 自体はポートを保ちます。
 
 ## コーディング上の注意
 
@@ -100,5 +148,5 @@ open build/Build/Products/Release/SevenFour.app
 ```
 
 - 起動するとメインウィンドウ（左ペインの板一覧・スレッド一覧・タブ付き WebView）が表示されれば OK です。
-- 自動テストはありません。変更後は少なくとも Universal ビルドが通ること、arm64 で起動することを確認してください。
+- 変更後は少なくとも、Universal ビルドとテスト（「テスト」を参照）が通ること、arm64 で起動することを確認してください。
 - Intel 版は Intel Mac、または Rosetta 2 が入った Apple silicon Mac で `arch -x86_64 .../SevenFour` を実行して確認します。
