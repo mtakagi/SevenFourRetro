@@ -362,13 +362,10 @@ static SFMainWindowController* activeController_;
 - (IBAction) newTab: (id) sender
 {
     SFThreadView* view = [[SFThreadView alloc] initWithFrame: [tabbedWebView frame]];
-    [view setPolicyDelegate: self];
-    [view setUIDelegate: self];
-	[view setFrameLoadDelegate: self];
-	// The page's views keep their own responder chain (the document view's
-	// next responder is its scroll view), so scrolling and keys work from
-	// the first page on. Overriding it sent them to the tab view, and a
-	// tab's first page could not scroll (#44).
+    // Links, hovering and loading come back through SFThreadViewDelegate.
+    // Keep the view's own responder chain: overriding it once made a tab's
+    // first page unable to scroll (#44).
+    [view setThreadDelegate: self];
 
     [tabbedWebView addContent: view];
     [view release];    
@@ -417,6 +414,13 @@ static SFMainWindowController* activeController_;
 
 - (BOOL) openThread: (NSURL*) url
 {
+	BOOL background = ([[NSApp currentEvent] modifierFlags] & NSEventModifierFlagCommand) != 0;
+	return [self openThread: url inBackground: background];
+}
+
+// Opens a thread in the selected tab, or in a new tab behind it.
+- (BOOL) openThread: (NSURL*) url inBackground: (BOOL) background
+{
 	DEBUG_LOG(@"SFMainWC %p - openThread:", self);
 	
     SFThreadFactory* factory = [SFThreadFactory sharedFactory];
@@ -426,7 +430,7 @@ static SFMainWindowController* activeController_;
     
 	SFThreadView* view;
     
-    if (([[NSApp currentEvent] modifierFlags] & NSEventModifierFlagCommand) != 0) {
+    if (background) {
         NSView<SFTabContent>* fg = [tabbedWebView selectedContent];
         
         [self newTab: nil];
@@ -918,48 +922,36 @@ static SFMainWindowController* activeController_;
 	}
 }
 
-// WebView policyDelegate
-- (void) webView: (WebView*) wv decidePolicyForNavigationAction: (NSDictionary*) action
-         request: (NSURLRequest*) req
-           frame: (WebFrame*) frame
-decisionListener: (id<WebPolicyDecisionListener>) listener
+#pragma mark Links and hovering
+
+// Decides a link or load in a page: YES lets the page load url. Internal
+// actions (pop-up by ID, post to a message), threads (opened in a tab) and
+// other web pages (the browser) are handled here instead. Used by the thread
+// views and the WebKit 1 pop-up window.
+- (BOOL) shouldLoadURL: (NSURL*) url inBackground: (BOOL) background
 {
-	NSURL* url = [req URL];
-	
     if ([[url scheme] isEqualTo: @"sevenfour"]) {
 		if ([[url host] isEqualTo: @"internal"]) {
-			[listener ignore];
 			[self handleSevenfourScheme: url];
-		} else {
-			[listener use];
+			return NO;
 		}
-		return;
+		return YES;
     } else if ([[url scheme] isEqualTo: @"applewebdata"] || [[url scheme] isEqualTo: @"about"]) {
-		[listener use];
-		return;
+		return YES;
     } else if (SFIsWebURL(url)) {
 		SFThread* th = [SFDocument threadWithURL: url];
 		if (th) {
-			[self openThread: url];
-			return;
+			[self openThread: url inBackground: background];
+			return NO;
 		}
 	}
-	[listener ignore];
 	[[NSWorkspace sharedWorkspace] openURL: url];
+	return NO;
 }
 
-// WebView UIDelegate
-- (void) webView: (WebView*) wv
- runJavaScriptAlertPanelWithMessage: (NSString*) message
+// The mouse moved onto a link (url) or off links (nil).
+- (void) hoverURL: (NSURL*) url label: (NSString*) label option: (BOOL) option
 {
-	NSLog(@"JavaScript - alert: %@", message);
-}
-
-
-- (void) webView: (WebView*) wv mouseDidMoveOverElement: (NSDictionary*) info
-   modifierFlags: (NSUInteger) flags
-{
-    NSURL* url = [info objectForKey: WebElementLinkURLKey];
 	if (! [activeURL_ isEqualTo: url]) {
         [activeURL_ release];
         activeURL_ = [url retain];
@@ -967,44 +959,73 @@ decisionListener: (id<WebPolicyDecisionListener>) listener
 		return;
     }
     
-	if (flags & NSEventModifierFlagOption) {
+	if (option) {
 		return;
 	}
     
     if (activeURL_) {
-        [self mouseOverOnURL: url
-                       label: [info objectForKey: WebElementLinkLabelKey]];
-    } else {
-        // NSLog(@"wv = %@", wv);
-#if 0
-        [latestPopUpWindow_ close];
-        latestPopUpWindow_ = nil;
-#endif
+        [self mouseOverOnURL: url label: label];
     }
 }
 
-// WebView FrameLoadDelegate
-- (void) webView: (WebView*) wv didStartProvisionalLoadForFrame: (WebFrame*) frame
+// SFThreadView delegate
+- (BOOL) threadView: (SFThreadView*) view
+      shouldLoadURL: (NSURL*) url
+       inBackground: (BOOL) background
 {
-	if (wv == (WebView*) [tabbedWebView selectedContent]) {
-		[self updatePageURL: [[[frame provisionalDataSource] request] URL]];
+	return [self shouldLoadURL: url inBackground: background];
+}
+
+- (void) threadView: (SFThreadView*) view
+       mouseOverURL: (NSURL*) url
+              label: (NSString*) label
+             option: (BOOL) option
+{
+	[self hoverURL: url label: label option: option];
+}
+
+- (void) threadViewDidStartLoading: (SFThreadView*) view
+{
+	if (view == [self selectedThreadView]) {
+		[self updatePageURL: [view pageURL]];
 	}
 }
 
-- (void) webView: (WebView*) wv didFinishLoadForFrame: (WebFrame*) frame
+- (void) threadViewDidFinishLoading: (SFThreadView*) view
 {
-#if 1
-	SFThread* th = [(SFThreadView*) wv thread];
-	
-	if ((WebView*) [tabbedWebView selectedContent] == wv) {
-		[self updatePageURL: [[[frame dataSource] request] URL]];
-		[[self window] makeFirstResponder: wv];
+	if (view == [self selectedThreadView]) {
+		[self updatePageURL: [view pageURL]];
+		[[self window] makeFirstResponder: view];
 	}
+}
 
-	if (([th count] - [th newCount]) > 0) {
-		[wv stringByEvaluatingJavaScriptFromString: @"sevenfour.scrollToNew();"];
+// The WebKit 1 pop-up window (SFPopUpWindowController) until it moves to
+// WKWebView too.
+- (void) webView: (WebView*) wv decidePolicyForNavigationAction: (NSDictionary*) action
+         request: (NSURLRequest*) req
+           frame: (WebFrame*) frame
+decisionListener: (id<WebPolicyDecisionListener>) listener
+{
+	NSUInteger flags = [[action objectForKey: WebActionModifierFlagsKey] unsignedIntegerValue];
+	if ([self shouldLoadURL: [req URL] inBackground: (flags & NSEventModifierFlagCommand) != 0]) {
+		[listener use];
+	} else {
+		[listener ignore];
 	}
-#endif
+}
+
+- (void) webView: (WebView*) wv
+ runJavaScriptAlertPanelWithMessage: (NSString*) message
+{
+	NSLog(@"JavaScript - alert: %@", message);
+}
+
+- (void) webView: (WebView*) wv mouseDidMoveOverElement: (NSDictionary*) info
+   modifierFlags: (NSUInteger) flags
+{
+	[self hoverURL: [info objectForKey: WebElementLinkURLKey]
+	         label: [info objectForKey: WebElementLinkLabelKey]
+	        option: (flags & NSEventModifierFlagOption) != 0];
 }
 
 // TabbedWebView delegate

@@ -3,9 +3,8 @@
 #import <Cocoa/Cocoa.h>
 
 // What the tab bar (TabbedWebView) needs from the view shown in a tab.
-// The tab bar knows nothing of WebKit; SFThreadView (a WebKit 1 WebView
-// today) implements this, so it can be replaced by a WKWebView-based view
-// without touching the tabs (#27, #28).
+// The tab bar knows nothing of WebKit; SFThreadView (a WKWebView since
+// #28) implements this (#27).
 @protocol SFTabContent <NSObject>
 // The tab's label; nil or empty shows "Untitled".
 - (NSString*) tabTitle;

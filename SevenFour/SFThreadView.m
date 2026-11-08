@@ -7,94 +7,150 @@
 #import "SFThread.h"
 #import "SFThreadFactory.h"
 #import "SFThreadHTMLFormatter.h"
+#import "SFThreadSchemeHandler.h"
 #import <OgreKit/OgreKit.h>
 
-@implementation SFThreadView
-- (float) estimatedProgress
-{
-    if (isFragmentLoading_) {
-        return 0.5f;
-    } else {
-        return [super estimatedProgress];
-    }
+// The name the hover script posts to.
+static NSString* const HOVER_MESSAGE = @"sevenfourHover";
+
+// Reports the link under the mouse: WKWebView has no API for it, so a
+// script posts {href, label, option} (or null off links) on mouseover.
+static NSString* const HOVER_SCRIPT =
+    @"(function () {\n"
+    @"  var last = null;\n"
+    @"  document.addEventListener('mouseover', function (e) {\n"
+    @"    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;\n"
+    @"    var href = a ? a.href : null;\n"
+    @"    if (href === last) return;\n"
+    @"    last = href;\n"
+    @"    window.webkit.messageHandlers.sevenfourHover.postMessage(\n"
+    @"      a ? { href: href, label: a.textContent, option: e.altKey } : null);\n"
+    @"  }, true);\n"
+    @"})();\n";
+
+// Holds the view without retaining it: the user content controller retains
+// its message handlers, and the view retains the controller.
+@interface SFThreadViewHoverHandler : NSObject <WKScriptMessageHandler> {
+@public
+    SFThreadView* view_;
 }
+@end
+
+@interface SFThreadView (Hover)
+- (void) hoverMessage: (id) body;
+@end
+
+@implementation SFThreadViewHoverHandler
+- (void) userContentController: (WKUserContentController*) controller
+       didReceiveScriptMessage: (WKScriptMessage*) message
+{
+    [view_ hoverMessage: [message body]];
+}
+@end
+
+@implementation SFThreadView
 
 #pragma mark SFTabContent
 
 - (NSString*) tabTitle
 {
-    return [self mainFrameTitle];
+    return [self title];
 }
 
 - (BOOL) isTabLoading
 {
-    float progress = [self estimatedProgress];
-    return progress != 0.0f && progress != 1.0f;
+    return [self isLoading] || isFragmentLoading_;
 }
 
-// WebKit's progress notifications (the title is set by the time a load
-// finishes, #45) and the thread updates, told to the tab bar.
-- (void) tabContentDidChange: (NSNotification*) n
+- (void) tabContentDidChange
 {
     [[NSNotificationCenter defaultCenter] postNotificationName: SFTabContentDidChangeNotification
                                                         object: self];
 }
 
+// "title" and "loading" of WKWebView, told to the tab bar.
+- (void) observeValueForKeyPath: (NSString*) path
+                       ofObject: (id) object
+                         change: (NSDictionary*) change
+                        context: (void*) context
+{
+    [self tabContentDidChange];
+}
+
 - (void) setFragmentLoading: (BOOL) flag
 {
-    [self willChangeValueForKey: @"estimatedProgress"];
     isFragmentLoading_ = flag;
-    [self didChangeValueForKey: @"estimatedProgress"];
-    [self tabContentDidChange: nil];
+    [self tabContentDidChange];
 }
 
 #pragma mark Page
 
+- (void) setThreadDelegate: (id) delegate
+{
+    threadDelegate_ = delegate;
+}
+
 - (NSURL*) pageURL
 {
-    return [[[[self mainFrame] dataSource] request] URL];
+    return [self URL];
 }
 
-- (BOOL) findString: (NSString*) string forward: (BOOL) forward
+- (void) findString: (NSString*) string forward: (BOOL) forward
 {
-    return [self searchFor: string direction: forward caseSensitive: NO wrap: NO];
+    if ([string length] == 0) {
+        return;
+    }
+    WKFindConfiguration* config = [[[WKFindConfiguration alloc] init] autorelease];
+    [config setBackwards: ! forward];
+    [config setCaseSensitive: NO];
+    [config setWraps: NO];
+    [self findString: string withConfiguration: config completionHandler: ^(WKFindResult* result) {}];
 }
 
-// The frame view fills the view (the tab bar sizes it, #27).
-- (void) setFrameSize: (NSSize) size
+- (void) hoverMessage: (id) body
 {
-    [super setFrameSize: size];
-    [[[self mainFrame] frameView] setFrameSize: size];
+    NSURL* url = nil;
+    NSString* label = nil;
+    BOOL option = NO;
+    if ([body isKindOfClass: [NSDictionary class]]) {
+        NSString* href = [body objectForKey: @"href"];
+        if ([href isKindOfClass: [NSString class]]) {
+            url = [NSURL URLWithString: href];
+        }
+        label = [body objectForKey: @"label"];
+        if (! [label isKindOfClass: [NSString class]]) {
+            label = nil;
+        }
+        option = [[body objectForKey: @"option"] boolValue];
+    }
+    [threadDelegate_ threadView: self mouseOverURL: url label: label option: option];
 }
+
+#pragma mark Thread
 
 - (void) setThread: (SFThread*) t
 {
 	NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
-	// Only the thread's notification: the progress ones stay.
 	[center removeObserver: self name: SFThreadDidFinishUpdatingNotification object: nil];
-	
+
 	[thread_ release];
 	thread_ = nil;
 
 	if (! t)
 		return;
-	
+
 	thread_ = [t retain];
 	[center addObserver: self
 			   selector: @selector(threadFinishParsing:)
 				   name: SFThreadDidFinishUpdatingNotification
-				 object: thread_];	
+				 object: thread_];
 }
 
 - (SFThread*) thread
 {
-	if (! thread_) {
-		NSMutableURLRequest* req = [[[self mainFrame] dataSource] request];
-		SFThread* t = [[SFThreadFactory sharedFactory] threadWithURL: [req URL]];
-		
-        [self setThread: t];
+	if (! thread_ && [self URL]) {
+		[self setThread: [[SFThreadFactory sharedFactory] threadWithURL: [self URL]]];
 	}
-
 	return thread_;
 }
 
@@ -107,128 +163,188 @@
 
 - (BOOL) isUpdatingThread
 {
-	return isFragmentLoading_ ? YES : NO;
+	return isFragmentLoading_;
 }
 
 - (void) loadThreadWithURL: (NSURL*) url
-{    
+{
     SFThreadFactory* factory = [SFThreadFactory sharedFactory];
 	[self setThread: [factory threadWithURL: url]];
-	
+
 	visibleCount_ = 0;
-    
-	// The same URL served by SFURLProtocol, keeping the port (#37).
+
+	// The same URL served by SFThreadSchemeHandler, keeping the port (#37).
 	NSURLComponents* c = [NSURLComponents componentsWithURL: url resolvingAgainstBaseURL: YES];
 	[c setScheme: @"sevenfour"];
 	[c setQuery: nil];
 	[c setFragment: nil];
-	NSURLRequest* req = [NSURLRequest requestWithURL: [c URL]];
-	
-	[[self mainFrame] loadRequest: req];
+	[self loadRequest: [NSURLRequest requestWithURL: [c URL]]];
 }
 
 - (NSString*) escapeJSString: (NSString*) s
 {
     NSMutableString* ms = [NSMutableString stringWithString: s];
 
+    [ms replaceOccurrencesOfString: @"\\"
+                        withString: @"\\\\"
+                           options: 0
+                             range: NSMakeRange(0, [ms length])];
     [ms replaceOccurrencesOfString: @"'"
-                        withString: @"\\'" 
+                        withString: @"\\'"
                            options: 0
                              range: NSMakeRange(0, [ms length])];
     [ms replaceOccurrencesOfRegularExpressionString: @"[\n\r]"
-                                         withString: @" " 
+                                         withString: @" "
                                             options: 0
                                               range: NSMakeRange(0, [ms length])];
     return ms;
 }
 
+// The thread was updated: add its new messages to the page.
 - (void) threadFinishParsing: (NSNotification*) n
-{   
-	DEBUG_LOG(@"SFThreadView %p - threadFinishParsing:", self);
-
+{
 	SFThread* th = [n object];
-	DEBUG_LOG(@"  [th count] = %d", [th count]);
-	
+
 	if (visibleCount_ == 0) {
-		// First
-	} else {
-        SFThreadHTMLFormatter* formatter = [[SFThreadHTMLFormatter alloc] init];
-		NSMutableString* html = [NSMutableString string];
-		int i;
-		
-		for (i = visibleCount_; i < [th count]; i++) {
-			NSDictionary* message = [th messageAtIndex: i];
-			[html appendString: [formatter formatMessage: message
-                                                  number: i + 1]];
-		}
-        [formatter release];
-		
-		// DEBUG_LOG(@"  html = %@", html);
-		
-		NSString* script = [NSString stringWithFormat: 
-			@"document.getElementById('new').innerHTML += '%@';",
-			[self escapeJSString: html]];
-		[self stringByEvaluatingJavaScriptFromString: script];	
+		// The page is loading and will show them all.
+		[self setFragmentLoading: NO];
+		return;
 	}
-	
+
+	SFThreadHTMLFormatter* formatter = [[SFThreadHTMLFormatter alloc] init];
+	NSMutableString* html = [NSMutableString string];
+	int i;
+	for (i = visibleCount_; i < [th count]; i++) {
+		NSDictionary* message = [th messageAtIndex: i];
+		[html appendString: [formatter formatMessage: message
+		                                      number: i + 1]];
+	}
+	[formatter release];
 	visibleCount_ = [th count];
 
-    [self setFragmentLoading: NO];
+	if ([html length] == 0) {
+		[self setFragmentLoading: NO];
+		return;
+	}
+	NSString* script = [NSString stringWithFormat:
+		@"document.getElementById('new').innerHTML += '%@';",
+		[self escapeJSString: html]];
+	[self evaluateJavaScript: script completionHandler: ^(id result, NSError* error) {
+		if (error) {
+			NSLog(@"SFThreadView: adding new messages failed: %@", error);
+		}
+		[self setFragmentLoading: NO];
+	}];
 }
 
-- (BOOL) goBack
+#pragma mark WKNavigationDelegate
+
+- (void) webView: (WKWebView*) webView
+decidePolicyForNavigationAction: (WKNavigationAction*) action
+ decisionHandler: (void (^)(WKNavigationActionPolicy)) decisionHandler
 {
-	[thread_ release];
-	thread_ = nil;
-	
-    BOOL result = [super goBack];
-    visibleCount_ = [[self thread] count];
-	
-	return result;
+	NSURL* url = [[action request] URL];
+	BOOL background = ([action modifierFlags] & NSEventModifierFlagCommand) != 0;
+	BOOL load = YES;
+	if (threadDelegate_) {
+		load = [threadDelegate_ threadView: self shouldLoadURL: url inBackground: background];
+	}
+	decisionHandler(load ? WKNavigationActionPolicyAllow : WKNavigationActionPolicyCancel);
 }
 
-- (BOOL) goForward
+- (void) webView: (WKWebView*) webView didStartProvisionalNavigation: (WKNavigation*) navigation
 {
-	[thread_ release];
-	thread_ = nil;
-	
-    BOOL result = [super goForward];
-    visibleCount_ = [[self thread] count];
-    
-	return result;
+	[threadDelegate_ threadViewDidStartLoading: self];
+}
+
+- (void) webView: (WKWebView*) webView didCommitNavigation: (WKNavigation*) navigation
+{
+	// Back and forward show another thread: follow the page.
+	SFThread* th = [[SFThreadFactory sharedFactory] threadWithURL: [self URL]];
+	if (th && th != thread_) {
+		[self setThread: th];
+	}
+}
+
+- (void) webView: (WKWebView*) webView didFinishNavigation: (WKNavigation*) navigation
+{
+	SFThread* th = [self thread];
+	// The page shows every message the thread had when it was made.
+	visibleCount_ = [th count];
+	if (([th count] - [th newCount]) > 0) {
+		[self evaluateJavaScript: @"sevenfour.scrollToNew();" completionHandler: nil];
+	}
+	[threadDelegate_ threadViewDidFinishLoading: self];
+}
+
+#pragma mark WKUIDelegate
+
+- (void) webView: (WKWebView*) webView
+runJavaScriptAlertPanelWithMessage: (NSString*) message
+initiatedByFrame: (WKFrameInfo*) frame
+completionHandler: (void (^)(void)) completionHandler
+{
+	NSLog(@"JavaScript - alert: %@", message);
+	completionHandler();
+}
+
+// A link that opens a new window (target=_blank) is decided like any other.
+- (WKWebView*) webView: (WKWebView*) webView
+createWebViewWithConfiguration: (WKWebViewConfiguration*) configuration
+   forNavigationAction: (WKNavigationAction*) action
+        windowFeatures: (WKWindowFeatures*) features
+{
+	NSURL* url = [[action request] URL];
+	BOOL background = ([action modifierFlags] & NSEventModifierFlagCommand) != 0;
+	if ([threadDelegate_ threadView: self shouldLoadURL: url inBackground: background]) {
+		[self loadRequest: [action request]];
+	}
+	return nil;
 }
 
 #pragma mark Override
+
 - (id) initWithFrame: (NSRect) frame
 {
-    self = [super initWithFrame: frame
-                      frameName: @"_top"
-                      groupName: nil];
+	WKWebViewConfiguration* config = [[[WKWebViewConfiguration alloc] init] autorelease];
+	[config setURLSchemeHandler: [SFThreadSchemeHandler sharedHandler] forURLScheme: @"sevenfour"];
+
+	SFThreadViewHoverHandler* hover = [[[SFThreadViewHoverHandler alloc] init] autorelease];
+	WKUserContentController* content = [config userContentController];
+	[content addScriptMessageHandler: hover name: HOVER_MESSAGE];
+	WKUserScript* script = [[[WKUserScript alloc] initWithSource: HOVER_SCRIPT
+	                                               injectionTime: WKUserScriptInjectionTimeAtDocumentEnd
+	                                            forMainFrameOnly: YES] autorelease];
+	[content addUserScript: script];
+
+    self = [super initWithFrame: frame configuration: config];
+	if (! self) {
+		return nil;
+	}
+	hover->view_ = self;
+	hoverHandler_ = [hover retain];
+
     visibleCount_ = 0;
     isFragmentLoading_ = NO;
-
-    NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
-    NSArray* names = [NSArray arrayWithObjects:
-        WebViewProgressStartedNotification,
-        WebViewProgressEstimateChangedNotification,
-        WebViewProgressFinishedNotification, nil];
-    NSEnumerator* e = [names objectEnumerator];
-    NSString* name;
-    while ((name = [e nextObject]) != nil) {
-        [center addObserver: self
-                   selector: @selector(tabContentDidChange:)
-                       name: name
-                     object: self];
-    }
+	[self setNavigationDelegate: self];
+	[self setUIDelegate: self];
+	[self addObserver: self forKeyPath: @"title" options: 0 context: NULL];
+	[self addObserver: self forKeyPath: @"loading" options: 0 context: NULL];
 
     return self;
 }
 
 - (void) dealloc
 {
-	// FIXME
-	// [[self thread] release];
+	[self removeObserver: self forKeyPath: @"title"];
+	[self removeObserver: self forKeyPath: @"loading"];
 	[[NSNotificationCenter defaultCenter] removeObserver: self];
+	((SFThreadViewHoverHandler*) hoverHandler_)->view_ = nil;
+	[[[self configuration] userContentController] removeScriptMessageHandlerForName: HOVER_MESSAGE];
+	[hoverHandler_ release];
+	[self setNavigationDelegate: nil];
+	[self setUIDelegate: nil];
+	[thread_ release];
     [super dealloc];
 }
 
