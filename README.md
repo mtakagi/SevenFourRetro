@@ -28,6 +28,13 @@ SevenFour は、2005〜2006 年ごろに書かれた Mac OS X 用の 2ch ブラ�
 - Shift_JIS は Windows と同じ CP932 として読み込み
 - アイコンは SF Symbols
 
+## ダウンロード
+
+[GitHub Releases](https://github.com/mtakagi/SevenFourRetro/releases) から `SevenFour-<バージョン>.zip` をダウンロードし、展開した `SevenFour.app` をアプリケーションフォルダに入れてください。macOS 26 以降の Apple silicon と Intel の Mac で動きます。
+
+- アプリは Developer ID で署名し、Apple の公証を受けています。
+- バンドル ID は `io.github.mtakagi.SevenFourRetro` です。元の SevenFour（`com.xrea.s74.quux.SevenFour`）や Swift 移植版（`io.github.mtakagi.SevenFour`）とは別のアプリとして扱われるので、設定（ウインドウの位置や板一覧の URL など）は引き継がれません。ログと索引（`~/Library/Application Support/SevenFour`）は同じ場所を使います。
+
 ## ビルド
 
 Xcode（macOS 26 SDK 以降）と [XcodeGen](https://github.com/yonaskolb/XcodeGen) が必要です。Xcode プロジェクトは `project.yml` から生成するので、リポジトリには含めていません。
@@ -44,7 +51,7 @@ xcodebuild -project SevenFour.xcodeproj -scheme SevenFour \
 open build/Build/Products/Release/SevenFour.app
 ```
 
-アプリはアドホック署名です。
+自分でビルドしたアプリはアドホック署名です（配布しているものは Developer ID で署名しています）。
 
 ## テスト
 

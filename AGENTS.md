@@ -35,7 +35,7 @@ Tools/
   fakebbs.py             手動確認用の偽の掲示板サーバー
   run-app-with-test-home.sh  一時的な HOME でアプリを起動するスクリプト
 docs/                    記録・設計の文書（retro-reading-flow.md は読み進め操作の記録（#22）、wkwebview-migration.md は WKWebView への移行で置き換えた機能（#27、#28））
-.github/workflows/       CI（ビルドとテスト）
+.github/workflows/       CI（ビルドとテスト）とリリース（署名・公証・GitHub Releases）
 ```
 
 ## ビルド
@@ -58,7 +58,8 @@ lipo -info build/Build/Products/Release/SevenFour.app/Contents/MacOS/SevenFour
 
 - デプロイメントターゲットは macOS 26.0、`ARCHS = $(ARCHS_STANDARD)`（arm64 + x86_64）です。
 - Debug 構成は `ONLY_ACTIVE_ARCH = YES` です。Universal バイナリを確認するときは上のように Release + `generic/platform=macOS` を使ってください。
-- 署名はローカル実行用のアドホック署名（`CODE_SIGN_IDENTITY = "-"`）です。
+- 署名はローカル実行用のアドホック署名（`CODE_SIGN_IDENTITY = "-"`）です。リリースでは CI が Developer ID で署名します（下の「リリース」）。
+- バンドル ID は `io.github.mtakagi.SevenFourRetro`、バージョンは `project.yml` の `MARKETING_VERSION`（`CFBundleShortVersionString`）と `CURRENT_PROJECT_VERSION`（`CFBundleVersion`）です（#19）。
 - ソースやリソースを追加・削除・移動したら `xcodegen generate` を再実行してください。`SevenFour/` 以下のファイルは自動で取り込まれます。
 
 ## CI
@@ -71,6 +72,32 @@ lipo -info build/Build/Products/Release/SevenFour.app/Contents/MacOS/SevenFour
 - ビルドしたアプリ（`SevenFour.zip`）を Artifact として 7 日間保存
 
 ビルド設定を変えるときは、ローカル（Xcode 27）だけでなく CI の Xcode でも通ることを確認してください。
+
+## リリース
+
+`.github/workflows/release.yml` が、タグ `v<MARKETING_VERSION>`（例: `v2.0`）の push で次を行います（#19）。
+
+1. タグと `project.yml` の `MARKETING_VERSION` が一致すること、必要な Secrets があることを確認する
+2. テストを実行する
+3. 一時的なキーチェーンに Developer ID の証明書を入れ、Developer ID・Hardened Runtime・タイムスタンプ付きで Universal の Release ビルドをする（`project.yml` のアドホック署名を `xcodebuild` の引数で上書きする）
+4. `notarytool` で公証し、チケットをアプリに添付する（`stapler`）。`spctl` で Gatekeeper の評価を確認する
+5. `SevenFour-<バージョン>.zip` を添付した **下書き** の GitHub Release を作る。中身を確かめてから手で公開する
+
+リリースの手順: `project.yml` の `MARKETING_VERSION` と `CURRENT_PROJECT_VERSION` を上げて main にマージし、`git tag v2.0 && git push origin v2.0` する。
+
+Secrets（リポジトリの Settings → Secrets and variables → Actions）:
+
+| 名前 | 内容 |
+| --- | --- |
+| `DEVELOPER_ID_P12` | 「Developer ID Application」の証明書と秘密鍵を書き出した .p12 を base64 にしたもの |
+| `DEVELOPER_ID_P12_PASSWORD` | その .p12 のパスワード |
+| `APPLE_TEAM_ID` | チーム ID（10 文字） |
+| `NOTARY_KEY` | `notarytool` 用の App Store Connect API キー（.p8）を base64 にしたもの |
+| `NOTARY_KEY_ID` | API キーの ID |
+| `NOTARY_ISSUER_ID` | API キーの Issuer ID |
+
+- 公証には Hardened Runtime が必要です。WKWebView（Web コンテンツは別プロセス）や通信を含め、追加の entitlements なしで動くことを確認しています。新しく entitlements が必要な機能を足すときは、Hardened Runtime を有効にして試してください（`xcodebuild ... ENABLE_HARDENED_RUNTIME=YES` でビルドし、`Tools/run-app-with-test-home.sh` で起動する。スクリプトは署名し直すときに Hardened Runtime のフラグを残します）。
+- 秘密鍵や証明書をリポジトリに入れないでください。
 
 ## テスト
 
@@ -106,8 +133,8 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
 
 - `Tools/fakebbs.py`: 板一覧・subject.txt・DAT（Range 対応）と、5ch 風の書き込み確認（確認ページ、Cookie、hidden 値、`?guid=ON`）を返します。板は「テスト板」（2 スレ）のほか、たくさんのスレを読み進める確認用の「読み進め板」（40 スレ、300 レスのスレを含む）と「雑談板」（30 スレ）があります（`docs/retro-reading-flow.md`）。受け付けた書き込みはそのスレの最後に追加されるので、新着の確認にも使えます（メモリ上だけで、起動し直すと元に戻ります）。本文に `ERRORTEST` を含めるとエラーページを返し、`LOSTTEST` を含めると書き込みを受け付けたうえで応答を途中で切ります（結果が分からない場合の確認用）。`--delay 4` で GET の応答を遅らせると更新アイコンの回転を、`--post-delay 3` で書き込みの応答を遅らせると送信中の書き込みウインドウを確認できます。
 - `Tools/run-app-with-test-home.sh`: `HOME` と `CFFIXED_USER_HOME` を一時ディレクトリにしてアプリを起動します。DB・キャッシュ・Cookie はそこに保存されます。
-  - **設定（NSUserDefaults）は HOME を変えても分けられません**（cfprefsd が本当のホームの `~/Library/Preferences` に保存します）。そのため、スクリプトはアプリをコピーしてバンドル ID を `com.xrea.s74.quux.SevenFour.test` に変えて起動し、終了時にその設定を削除します。普段の設定（`com.xrea.s74.quux.SevenFour`）には触れません。
-  - アプリを操作するときは、このバンドル ID を使ってください（例: `osascript -e 'tell application id "com.xrea.s74.quux.SevenFour.test" to activate'`）。
+  - **設定（NSUserDefaults）は HOME を変えても分けられません**（cfprefsd が本当のホームの `~/Library/Preferences` に保存します）。そのため、スクリプトはアプリをコピーしてバンドル ID を `io.github.mtakagi.SevenFourRetro.test` に変えて起動し、終了時にその設定を削除します。普段の設定（`io.github.mtakagi.SevenFourRetro`）には触れません。
+  - アプリを操作するときは、このバンドル ID を使ってください（例: `osascript -e 'tell application id "io.github.mtakagi.SevenFourRetro.test" to activate'`）。
   - アプリを直接起動して試さないでください（普段の設定に書き込まれます）。
 - 確認する手順:
   1. 起動して、左ペインに板一覧が出る
@@ -167,7 +194,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - Cookie は自前で `Cookie` ヘッダを組み立てず、共有の `NSHTTPCookieStorage` に任せます。bbs.cgi が書き込み確認ページで発行した Cookie を次の書き込みで送り返す必要があるためです。
   - 確認ページで OK を押したとき（同じ名前・メール・本文での再送）は、確認ページの `<form>`（`action`、hidden の値、送信ボタンの name/value）をブラウザと同じようにそのまま送ります（#12）。値は Shift_JIS で URL エンコードします。
   - それ以外の書き込みでは、`time` に現在の UNIX 時刻を送り、以前の確認ページの hidden の値（`sharedFormData_`）も付けます。
-  - 実際の掲示板で書き込みに失敗する場合は、`defaults write com.xrea.s74.quux.SevenFour DebugPostResponse -bool YES` を設定すると、最後の応答が `~/Library/Logs/SevenFour/LastPostResponse.html` に保存されます（書き込んだ本文も含まれます）。
+  - 実際の掲示板で書き込みに失敗する場合は、`defaults write io.github.mtakagi.SevenFourRetro DebugPostResponse -bool YES` を設定すると、最後の応答が `~/Library/Logs/SevenFour/LastPostResponse.html` に保存されます（書き込んだ本文も含まれます）。
   - 実際の掲示板に書き込んで試さないでください。ローカルの偽サーバー（確認ページ・Cookie・hidden 値を再現したもの）で確認します。
 - **アイコンは SF Symbols を使います**（#5）。画像ファイルは追加しないでください。
   - ツールバー: `Japanese.lproj/Toolbar.plist` の各項目の `symbol` キーにシンボル名を書きます（`SFMainWindowController.m` が `+[NSImage imageWithSystemSymbolName:accessibilityDescription:]` で読み込みます）。
