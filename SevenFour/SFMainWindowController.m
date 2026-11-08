@@ -14,7 +14,7 @@
 #import "SFThreadView.h"
 
 #import "TabbedWebView.h"
-#import "HTThreePaneSplitView.h"
+#import "SFThreePaneView.h"
 #import "SFSymbolToolbarItem.h"
 
 #import "SFThreadHTMLFormatter.h"
@@ -575,9 +575,6 @@ static SFMainWindowController* activeController_;
     [sidePaneController_ setAdditionalSearchField: boardSearchField];
 	[sidePaneController_ update];
 	
-	// Split View
-	[splitView setAutosaveName: @"SplitView"];
-		
     // Thread List
     [threadListView setAutosaveName: @"ThreadList"];
     [threadListView setAutosaveTableColumns: YES];
@@ -626,10 +623,9 @@ static SFMainWindowController* activeController_;
     // The board list is the left pane, even with the old UseDrawer setting
     // on (#29).
     [splitView setSideView: [sidePaneController_ view]];
-    [splitView useSideViewAlternativeStyle: YES];
-    [splitView setSideViewNeedsBorder: YES];
-
 	[splitView setVertical: [defaults integerForKey: @"SplitVertical"]];
+	// The sizes of the panes, once the panes are in place.
+	[splitView setAutosaveName: @"SplitView"];
 
 	// Font
 	NSFont* font = [NSFont fontWithName: [defaults stringForKey: @"ThreadListFontFamily"]

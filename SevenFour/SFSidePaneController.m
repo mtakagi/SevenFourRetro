@@ -49,6 +49,9 @@
     [outlineView setAllowsMultipleSelection: YES];
     [outlineView setColumnAutoresizingStyle: NSTableViewLastColumnOnlyAutoresizingStyle];
     [outlineView setFocusRingType: NSFocusRingTypeNone];
+    // Full-width rows, as with the nib, not the source list style the
+    // automatic style picks for the leftmost pane of a split view.
+    [outlineView setStyle: NSTableViewStyleFullWidth];
     [outlineView setTarget: self];
     [outlineView setAction: @selector(clicked:)];
     [scroll setDocumentView: outlineView];

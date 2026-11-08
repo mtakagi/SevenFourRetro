@@ -132,7 +132,8 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - ローカルで `ld: warning: search path '...' not found` が出る場合は、シェルの `LIBRARY_PATH` などの環境によるもので、プロジェクトの警告ではありません。
 - `.nib` は旧形式のバイナリなので、テキストとして編集できません。UI を変えるときは、コードで変更するか `.xib` への移行を検討してください。
   - 書き込みウインドウ（`SFPostWindowController -makeWindow`）は、`PostWindow.nib` と同じ配置・リサイズの挙動をコードで作っています（#30）。メインウインドウ（`SFMainWindowController+Window.m`、`SFSidePaneController -makeView`）も同じです（#29）。ほかの nib をコードに移すときの参考にしてください。
-  - メインウインドウ（#29）: 板一覧は常に左ペイン（3 ペインの分割ビュー `HTThreePaneSplitView` の side view）です。ドロワー（`NSDrawer`）はなくしたので、旧設定の `UseDrawer`・`DrawerEdge`・`DrawerSize` は読みません。環境設定（`MainMenu.nib`）のドロワーの項目は、nib のビューに非表示のビット（`NSvFlags` の 0x80000000）を立てて隠しています。Tab キーの順は、ウインドウが画面上の位置から決めます（`autorecalculatesKeyViewLoop`）。
+  - メインウインドウ（#29）: 板一覧は常に左ペイン（3 ペインの分割ビュー `SFThreePaneView` の side view）です。ドロワー（`NSDrawer`）はなくしたので、旧設定の `UseDrawer`・`DrawerEdge`・`DrawerSize` は読みません。環境設定（`MainMenu.nib`）のドロワーの項目は、nib のビューに非表示のビット（`NSvFlags` の 0x80000000）を立てて隠しています。Tab キーの順は、ウインドウが画面上の位置から決めます（`autorecalculatesKeyViewLoop`）。
+  - 3 ペインの分割ビュー（#57）: `SFThreePaneView` は `NSSplitView` を 2 つ入れ子にしたものです（外側が板一覧｜それ以外、内側がスレッド一覧／本文タブ）。分割位置は `NSSplitView` の自動保存（`SplitView Side` / `SplitView Main`）で保存します。以前の `HTThreePaneSplitView`（ヘチマ氏作。再配布の条件が明記されていないため置き換えた）が保存した位置（`HTThreePaneSplitView_SplitView`）は、新しい保存がないときに一度だけ引き継ぎます。板一覧と本文の表示切り替えはビューを隠して行います（隠したあとは分割ビューのレイアウトをやり直さないと、分割線が残って見えます）。テーブルとアウトラインの `style` は `NSTableViewStyleFullWidth` にしています（自動のままだと、分割ビューの左端のペインで角の丸い行になります）。
   - nib の設定を正確に知るには、ビルドしたアプリの nib を小さなプログラムで読み込み（`NSNib` の `-initWithNibData:bundle:`、持ち主は `setValue:forUndefinedKey:` を受け流すオブジェクト）、できたビューやテーブル列の値（大きさ、autoresizing mask、列の幅・並べ替え・バインディングなど）を表示する方法もあります（#29 で使いました）。nib の配置や設定は、`keyedobjects.nib` を `plistlib` で読むと分かります（`NSFrame`、`NSvFlags` の下位 6 ビットが autoresizing mask）。
   - 旧 nib には現行 AppKit で読み込むと例外になるデータが残っていることがあります（例: 旧 `PostWindow.nib` の `NSComboBox` 内部テーブル列の `NSIdentifier` が数値だった。#2。この nib は #30 でコードに置き換えました）。`keyedobjects.nib` は NSKeyedArchiver のバイナリ plist なので、`plistlib` などで該当オブジェクトだけを書き換えて修正できます。
   - `.nib` ディレクトリ内のファイルだけを変更しても Xcode は再コンパイルしません。`touch SevenFour/Japanese.lproj/<Name>.nib` してからビルドしてください。
@@ -173,7 +174,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - 処理中にアニメーションさせる項目（板更新・スレ更新）は、`Toolbar.plist` で `animates` を `true` にします（#15）。その項目は `SFSymbolToolbarItem`（`NSImageView` を持つボタン）で作られ、`-isToolbarItemBusy:` が YES の間、シンボルを回転させます。シンボルエフェクトには `Symbols.framework` が必要です（`project.yml` でリンク済み）。
   - 処理が終わったら `-validateToolbarSoon:` を呼んでツールバーを再検証すると、アニメーションが止まります。
   - セルやボタンに色付きで描くときは `NSImage+SFSymbols.h` の `+sf_imageWithSymbolName:pointSize:color:size:` を使います（テンプレート画像にならないので色がそのまま出ます。動的カラーはダークモードに追従します）。
-  - 例外: タブの背景（`tab.png`）、アプリアイコン（`74.icns`）、分割バーの模様（`HTThreePaneSplitView.m`）はアイコンではないので画像のままです。
+  - 例外: タブの背景（`tab.png`）とアプリアイコン（`74.icns`）はアイコンではないので画像のままです。
 - **Shift_JIS の読み込み**（#31）: 掲示板から受け取ったデータ（板一覧・subject.txt・DAT・bbs.cgi の応答）は `Ch2StringFromShiftJIS()`（`Ch2ShiftJIS.h`）で文字列にしてください。Windows と同じ CP932 として読み、壊れたバイトは U+FFFD に、末尾で切れた文字は捨てます。`-[NSString initWithData:encoding:]` は 1 バイトでも壊れていると全体が nil になるので使わないでください。旧 Text Encoding Converter（`TEC.m`）は削除しました。
 - ソースのエンコーディングは UTF-8 です。
 - **通信は HTTPS 前提です。** 現行 SDK では App Transport Security (ATS) が有効なため、平文 HTTP の通信はブロックされます。ATS の例外は設定していません。

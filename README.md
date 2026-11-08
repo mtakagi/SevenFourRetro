@@ -65,4 +65,4 @@ SevenFour 本体は、作者が著作権を放棄しています。このリポ�
 ## 謝辞
 
 元の SevenFour の作者に感謝します。
-3 ペインまわりのコード（`HTThreePaneSplitView`）はヘチマ氏、スキンの一部は Prototype JavaScript Framework、アイコンはゴルァのひとと SevenFour スレの名無しのみなさんによるものです（元のサイトの謝辞より）。
+元の版の 3 ペインまわりのコード（`HTThreePaneSplitView`。このリポジトリでは書き直した実装に置き換えています）はヘチマ氏、スキンの一部は Prototype JavaScript Framework、アイコンはゴルァのひとと SevenFour スレの名無しのみなさんによるものです（元のサイトの謝辞より）。
