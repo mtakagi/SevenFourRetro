@@ -5,7 +5,7 @@
 #import "SFThread.h"
 #import "SFThreadHTMLFormatter.h"
 #import "SFThreadView.h"
-#import "SFURLProtocol.h"
+#import "SFThreadFactory.h"
 
 @implementation SFThreadSchemeHandler
 
@@ -63,7 +63,7 @@ static void respond(id<WKURLSchemeTask> task, NSData* data, NSString* type, NSSt
 
 - (void) startSkinTask: (id<WKURLSchemeTask>) task
 {
-    NSString* path = [SFURLProtocol pathOfSkinFile: [[task request] URL]];
+    NSString* path = [SFThreadHTMLFormatter pathOfSkinFile: [[[task request] URL] path]];
     NSData* data = path ? [NSData dataWithContentsOfFile: path] : nil;
     if (! data) {
         [task didFailWithError: [NSError errorWithDomain: NSURLErrorDomain
@@ -72,6 +72,26 @@ static void respond(id<WKURLSchemeTask> task, NSData* data, NSString* type, NSSt
         return;
     }
     respond(task, data, typeOfSkinFile(path), @"utf-8");
+}
+
+// The thread of a sevenfour:// thread URL, and its range (retained; release
+// it) when the URL has one.
++ (void) parseURL: (NSURL*) url
+           thread: (SFThread**) thread
+            range: (NSString**) range
+{
+    *range = nil;
+
+    // The board keeps the host and port of the URL (#37).
+    *thread = [[SFThreadFactory sharedFactory] threadWithURL: url];
+
+    NSArray* ary = [[url path] pathComponents];
+    if (*thread && [ary count] > 5 &&
+        [[ary objectAtIndex: 1] isEqualTo: @"test"] &&
+        [[ary objectAtIndex: 2] isEqualTo: @"read.cgi"]) {
+        // 0: /, 1: test, 2: read.cgi, 3: BOARD, 4: NUMBER, 5: RANGE
+        *range = [[ary objectAtIndex: 5] retain];
+    }
 }
 
 - (NSMutableDictionary*) pendingForTask: (id<WKURLSchemeTask>) task
@@ -96,7 +116,7 @@ static void respond(id<WKURLSchemeTask> task, NSData* data, NSString* type, NSSt
 {
     SFThread* thread;
     NSString* range;
-    [SFURLProtocol parseURL: [[task request] URL] thread: &thread range: &range];
+    [SFThreadSchemeHandler parseURL: [[task request] URL] thread: &thread range: &range];
     if (! thread) {
         NSLog(@"SFThreadSchemeHandler: %@ is not a thread.", [[task request] URL]);
         [range release];
@@ -108,7 +128,7 @@ static void respond(id<WKURLSchemeTask> task, NSData* data, NSString* type, NSSt
     [formatter setRange: range];
     [range release];
 
-    // Shown once the thread has been updated, as SFURLProtocol does.
+    // Shown once the thread has been updated.
     NSMutableDictionary* entry = [NSMutableDictionary dictionaryWithObjectsAndKeys:
         task, @"task", thread, @"thread", formatter, @"formatter", webView, @"webView", nil];
     id observer = [[NSNotificationCenter defaultCenter]

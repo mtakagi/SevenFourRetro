@@ -1,90 +1,96 @@
+/* This file is not copyrighted and may be used freely. */
+
 #import "SFPopUpWindowController.h"
+#import "SFPageView.h"
 #import "TemporaryPanel.h"
-#import "SFThread.h"
-#import "SFThreadView.h"
 
-@interface NSScreen(DockHeight)
-+ (float) dockHeight;
-@end
-
-@implementation NSScreen(DockHeight)
-+ (float) dockHeight
-{
-    NSString* path = [@"~/Library/Preferences/com.apple.dock.plist" stringByExpandingTildeInPath];
-    NSDictionary* plist = [NSDictionary dictionaryWithContentsOfFile: path];
-    if (! [[plist objectForKey: @"autohide"] intValue]) {
-        return [[plist objectForKey: @"tilesize"] floatValue] + 11.0;
-    } else {
-        return 0.0;
-    }
-}
-@end
+// The width of the window's border.
+static const CGFloat BORDER = 1.0;
 
 @implementation SFPopUpWindowController
 
-- (WebView*) webView
+- (id) initWithFrame: (NSRect) frame
 {
-	return threadView;
+    TemporaryPanel* panel = [[[TemporaryPanel alloc] initWithContentRect: frame
+                                                               styleMask: NSWindowStyleMaskBorderless
+                                                                 backing: NSBackingStoreBuffered
+                                                                   defer: YES] autorelease];
+    self = [super initWithWindow: panel];
+    if (! self) {
+        return nil;
+    }
+    [panel setCloseEvent: TemporaryPanelCloseWhenExited];
+
+    [panel setHasShadow: YES];
+
+    // A thin border, so the window stands out from the page under it.
+    NSRect bounds = NSMakeRect(0, 0, frame.size.width, frame.size.height);
+    NSView* content = [[[NSView alloc] initWithFrame: bounds] autorelease];
+    [content setWantsLayer: YES];
+    [[content layer] setBorderWidth: BORDER];
+    [[content layer] setBorderColor: [[NSColor grayColor] CGColor]];
+    [panel setContentView: content];
+
+    pageView_ = [[SFPageView alloc] initWithFrame: NSInsetRect(bounds, BORDER, BORDER)
+                             reportsContentHeight: YES];
+    [pageView_ setAutoresizingMask: NSViewWidthSizable | NSViewHeightSizable];
+    [content addSubview: pageView_];
+    [panel setInitialFirstResponder: pageView_];
+
+    [[NSNotificationCenter defaultCenter] addObserver: self
+                                             selector: @selector(contentHeightDidChange:)
+                                                 name: SFPageViewContentHeightDidChangeNotification
+                                               object: pageView_];
+    return self;
 }
 
-- (void) resizeFrame
+- (SFPageView*) pageView
 {
-    NSView* docView = [[[threadView mainFrame] frameView] documentView];    
+    return pageView_;
+}
 
-	NSSize screenSize = [[[self window] screen] frame].size;
-	screenSize.height -= [[NSApp mainMenu] menuBarHeight];
-    
-	screenSize.height -= [NSScreen dockHeight];
-	
+// Fits the window to the page's height, within the screen. The bottom
+// stays under the mouse, where the window was opened.
+- (void) resizeToHeight: (CGFloat) height
+{
+    NSRect screen = [[[self window] screen] visibleFrame];
+    if (NSIsEmptyRect(screen)) {
+        screen = [[NSScreen mainScreen] visibleFrame];
+    }
     NSRect rect = [[self window] frame];
-    rect.size = [docView bounds].size;
-	if (rect.origin.x + rect.size.width > screenSize.width) {
-		rect.origin.x = screenSize.width - rect.size.width;
-	}
-	if (rect.origin.y + rect.size.height > screenSize.height) {
-		rect.origin.y = screenSize.height - rect.size.height;
-	}
-	
+    rect.size.height = height + BORDER * 2;
+
+    if (NSMaxX(rect) > NSMaxX(screen)) {
+        rect.origin.x = NSMaxX(screen) - rect.size.width;
+    }
+    if (NSMaxY(rect) > NSMaxY(screen)) {
+        rect.origin.y = NSMaxY(screen) - rect.size.height;
+    }
     TemporaryPanel* panel = (TemporaryPanel*) [self window];
-	if (rect.size.height > screenSize.height) {
-		rect.size.height = screenSize.height;
-		rect.origin.y = [NSScreen dockHeight];
-        
-        // for scrollbar
+    if (rect.size.height > screen.size.height) {
+        rect.size.height = screen.size.height;
+        rect.origin.y = screen.origin.y;
+
+        // To scroll the page
         [panel setCanBecomeKeyWindow: YES];
         [panel makeKeyAndOrderFront: nil];
     }
-    [panel setFrame: rect display: NO];
+    [panel setFrame: rect display: YES];
 }
 
-- (void) frameDidChange: (NSNotification*) n
+- (void) contentHeightDidChange: (NSNotification*) n
 {
-    [self resizeFrame];
-}
-
-- (void) webView: (WebView*) wv didFinishLoadForFrame: (WebFrame*) frame
-{
-    [self resizeFrame];        
-    
-    NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
-    NSView* docView = [[[threadView mainFrame] frameView] documentView];
-    [center addObserver: self
-               selector: @selector(frameDidChange:)
-                   name: NSViewFrameDidChangeNotification
-                 object: docView];
-}
-
-- (void) awakeFromNib
-{
-    loaded_ = NO;
-    
-    TemporaryPanel* window = (TemporaryPanel*) [self window];
-    [window setCloseEvent: TemporaryPanelCloseWhenExited];
+    CGFloat height = [[[n userInfo] objectForKey: SFPageViewContentHeightKey] doubleValue];
+    if (height > 0) {
+        [self resizeToHeight: height];
+    }
 }
 
 - (void) dealloc
 {
-	[[NSNotificationCenter defaultCenter] removeObserver: self];
+    [[NSNotificationCenter defaultCenter] removeObserver: self];
+    [pageView_ setPageDelegate: nil];
+    [pageView_ release];
     [super dealloc];
 }
 

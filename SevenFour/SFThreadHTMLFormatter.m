@@ -25,6 +25,41 @@ static OGRegularExpression* NUMBER_REPLY_PATTERN = nil;
 	return [s rangeOfRegularExpressionString: @"\\x{3000} [^!-~]|[^!-~] \\x{3000}"].length != 0;
 }
 
++ (NSString*) pathOfSkinFile: (NSString*) name
+{
+	NSFileManager* manager = [NSFileManager defaultManager];
+	NSString* path;
+
+	// Only files in the skin folder.
+	if ([[name pathComponents] containsObject: @".."]) {
+		return nil;
+	}
+
+	// Home
+	path = [[SF_SUPPORT_DIRECTORY stringByAppendingPathComponent: @"Skin"]
+		stringByAppendingPathComponent: name];
+	if (! [manager isReadableFileAtPath: path]) {
+		// Bundle
+		path = [[[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: @"Skin"]
+			stringByAppendingPathComponent: name];
+		if (! [manager isReadableFileAtPath: path]) {
+			NSLog(@"Skin file %@ is not found.", name);
+			return nil;
+		}
+	}
+	return path;
+}
+
+// A template of the skin (retained), or nil.
++ (NSString*) loadTemplate: (NSString*) name
+{
+	NSString* path = [self pathOfSkinFile: name];
+	if (! path) {
+		return nil;
+	}
+	return [[NSString alloc] initWithContentsOfFile: path usedEncoding: NULL error: NULL];
+}
+
 + (void) reloadTemplates
 {
     [ HEADER_TMPL release];
@@ -33,21 +68,11 @@ static OGRegularExpression* NUMBER_REPLY_PATTERN = nil;
     [NEW_RES_TMPL release];
     [ FOOTER_TMPL release];
 
-	NSURL* url;
-    
-	// The encoding is guessed, as -initWithContentsOfURL: did, so user skins
-	// in other encodings still load.
-	url = [NSURL URLWithString: @"sevenfour://skin/Header.html"];
-    HEADER_TMPL = [[NSString alloc] initWithContentsOfURL: url usedEncoding: NULL error: NULL];
-	
-	url = [NSURL URLWithString: @"sevenfour://skin/Title.html"];
-    TITLE_TMPL = [[NSString alloc] initWithContentsOfURL: url usedEncoding: NULL error: NULL];
-	
-	url = [NSURL URLWithString: @"sevenfour://skin/NewRes.html"];
-    NEW_RES_TMPL = [[NSString alloc] initWithContentsOfURL: url usedEncoding: NULL error: NULL];
-	
-	url = [NSURL URLWithString: @"sevenfour://skin/Res.html"];
-    RES_TMPL = [[NSString alloc] initWithContentsOfURL: url usedEncoding: NULL error: NULL];
+	// The encoding is guessed, so user skins in other encodings still load.
+    HEADER_TMPL = [self loadTemplate: @"Header.html"];
+      TITLE_TMPL = [self loadTemplate: @"Title.html"];
+    NEW_RES_TMPL = [self loadTemplate: @"NewRes.html"];
+        RES_TMPL = [self loadTemplate: @"Res.html"];
 	
 	FOOTER_TMPL = @"</body></html>";
 }
@@ -250,7 +275,7 @@ static OGRegularExpression* NUMBER_REPLY_PATTERN = nil;
 
 - (NSString*) formatThreadBody
 {
-	DEBUG_LOG(@"SFURLProtocol %p - formatThread", self);
+	DEBUG_LOG(@"SFThreadHTMLFormatter %p - formatThread", self);
 	DEBUG_LOG(@"  range_ = %@", range_);
 	DEBUG_LOG(@"  thread_ = %@", thread_);
 	DEBUG_LOG(@"  [thread_ count] = %d", [thread_ count]);

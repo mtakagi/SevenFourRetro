@@ -13,7 +13,6 @@
 #import "SFNormalBoard.h"
 #import "SFSmartBoard.h"
 
-#import "SFURLProtocol.h"
 
 #import "Ch2BoardTree.h"
 #import "Ch2Board.h"

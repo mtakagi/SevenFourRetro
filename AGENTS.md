@@ -9,8 +9,8 @@ SevenFour は 2005〜2006 年頃に書かれた macOS 用 2ch ブラウザ（Coc
 このリポジトリでは、それを **macOS 26 以降の Apple silicon (arm64) と Intel (x86_64)** で動かせるように保守しています。
 
 - 言語: Objective-C（**手動参照カウント / MRC**。ARC は無効）
-- UI: 旧形式の Interface Builder `.nib`（`SevenFour/Japanese.lproj/*.nib`、keyedobjects 形式）。書き込みウインドウはコードで作っています（#30）
-- 表示: WebKit の旧 `WebView`（WebKit1）+ `SevenFour/Skin/` の HTML/CSS/JS
+- UI: 旧形式の Interface Builder `.nib`（`SevenFour/Japanese.lproj/*.nib`、keyedobjects 形式）。書き込みウインドウ（#30）とレスのポップアップウインドウ（#28）はコードで作っています
+- 表示: `WKWebView`（#28）+ `SevenFour/Skin/` の HTML/CSS/JS
 - 保存: SQLite（`~/Library/Application Support/SevenFour/Index.db`）
 
 ## ディレクトリ構成
@@ -32,7 +32,7 @@ Tests/                   XCTest の単体テスト（ターゲット SevenFourTe
 Tools/
   fakebbs.py             手動確認用の偽の掲示板サーバー
   run-app-with-test-home.sh  一時的な HOME でアプリを起動するスクリプト
-docs/                    記録・設計の文書（retro-reading-flow.md は読み進め操作の記録（#22）、wkwebview-migration.md は WKWebView への移行で置き換えた・置き換える機能（#27、#28））
+docs/                    記録・設計の文書（retro-reading-flow.md は読み進め操作の記録（#22）、wkwebview-migration.md は WKWebView への移行で置き換えた機能（#27、#28））
 .github/workflows/       CI（ビルドとテスト）
 ```
 
@@ -123,10 +123,10 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - 新しい API が必要な場合は、シムに実装を足すか、標準 API（`NSRegularExpression`、`sqlite3`）を直接使ってください。
 - 現行 SDK で削除された API（`NSMenuView`、`-[NSFont defaultLineHeightForFont]` など）は代替 API に置き換えてください。
 - **コンパイラの警告はゼロに保ちます**（#32）。非推奨 API の警告（`GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS`）と、`objc_msgSend` の型チェック（`ENABLE_STRICT_OBJC_MSGSEND`）は有効です。新しく警告を出さないでください。
-  - 旧 WebView（WebKit 1）の非推奨警告だけは、`project.yml` の `DISABLE_LEGACY_WEBKIT_DEPRECATIONS` で止めています。WKWebView への移行（#27、#28）で WebKit 1 をなくしたら、この定義を削除してください。
-  - それ以外で、すぐに置き換えられない非推奨 API は、使う箇所だけを `#pragma clang diagnostic push` / `ignored "-Wdeprecated-declarations"` / `pop` で囲み、理由と担当の Issue をコメントに書いてください。現在は MainWindow の `NSDrawer`、SidePane の `+[NSBundle loadNibNamed:owner:]`、ツールバー項目の `setMinSize:` / `setMaxSize:` だけです（#29）。
+  - 旧 WebView（WebKit 1）は #28 でなくしました。使わないでください（`WKWebView` を使います）。
+  - すぐに置き換えられない非推奨 API は、使う箇所だけを `#pragma clang diagnostic push` / `ignored "-Wdeprecated-declarations"` / `pop` で囲み、理由と担当の Issue をコメントに書いてください。現在は MainWindow の `NSDrawer`、SidePane の `+[NSBundle loadNibNamed:owner:]`、ツールバー項目の `setMinSize:` / `setMaxSize:` だけです（#29）。
   - `objc_msgSend` を直接呼ぶときは、メソッドの型にキャストしてから呼んでください（`Compat/OgreKit/OgreKit.m` を参照）。
-  - デリゲートやデータソースにするクラスは、プロトコル（`NSWindowDelegate`、`WebPolicyDelegate` など）を宣言してください。宣言しないと型の警告が出て、メソッドの型の食い違いも見つかりません。
+  - デリゲートやデータソースにするクラスは、プロトコル（`NSWindowDelegate`、`WKNavigationDelegate` など）を宣言してください。宣言しないと型の警告が出て、メソッドの型の食い違いも見つかりません。
   - ローカルで `ld: warning: search path '...' not found` が出る場合は、シェルの `LIBRARY_PATH` などの環境によるもので、プロジェクトの警告ではありません。
 - `.nib` は旧形式のバイナリなので、テキストとして編集できません。UI を変えるときは、コードで変更するか `.xib` への移行を検討してください。
   - 書き込みウインドウ（`SFPostWindowController -makeWindow`）は、`PostWindow.nib` と同じ配置・リサイズの挙動をコードで作っています（#30）。ほかの nib をコードに移すときの参考にしてください。nib の配置や設定は、`keyedobjects.nib` を `plistlib` で読むと分かります（`NSFrame`、`NSvFlags` の下位 6 ビットが autoresizing mask）。
@@ -134,13 +134,15 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - `.nib` ディレクトリ内のファイルだけを変更しても Xcode は再コンパイルしません。`touch SevenFour/Japanese.lproj/<Name>.nib` してからビルドしてください。
 - IBAction やツールバーのアクション内で発生した Objective-C 例外は AppKit に握りつぶされ、ログにも出ません。「ボタンを押しても何も起きない」場合は、例外を疑って `@try`/`@catch` で一時的にログを出すか、lldb で `objc_exception_throw` にブレークポイントを置いて調べてください。
 - **タブと本文の境界**（#27）: タブバー（`TabbedWebView`）は WebKit を使いません。タブの中身は `NSView<SFTabContent>`（`SFTabContent.h`）で、名前（`-tabTitle`）と読み込み中かどうか（`-isTabLoading`）だけを受け取り、変化は `SFTabContentDidChangeNotification` で知ります。
-  - 本文（`SFThreadView`）がこれを実装します。本文は `WKWebView` のサブクラスです（#28）。`sevenfour://` のページは `SFThreadSchemeHandler`（`WKURLSchemeHandler`）が返します。
-  - 本文のリンク・マウスを乗せたリンク・読み込みの開始と終了は、`SFThreadView` のデリゲート（`-setThreadDelegate:`、`SFThreadView.h` の `SFThreadViewDelegate`）で `SFMainWindowController` に伝えます。リンクに乗せたことは、`WKWebView` に API がないので、ユーザースクリプトから `WKScriptMessageHandler` で受け取ります。
-  - レスのポップアップウインドウ（`SFPopUpWindowController`）はまだ WebKit 1 の `WebView` です。WebKit 1 の API はここと、それを扱う `SFMainWindowController` のデリゲート（`WebPolicyDelegate`、`WebUIDelegate`）、`SFURLProtocol` だけで使ってください。
+  - 本文（`SFThreadView`）がこれを実装します（#28）。
+- **ページの表示（WKWebView）**（#28）: 本文（`SFThreadView`）とレスのポップアップウインドウ（`SFPopUpWindowController`）は、どちらも `SFPageView`（`WKWebView` のサブクラス）で表示します。
+  - `sevenfour://`（スレとスキン）は `SFThreadSchemeHandler`（`WKURLSchemeHandler`）が返します。スキンのファイルの場所は `+[SFThreadHTMLFormatter pathOfSkinFile:]` で決めます（利用者のスキン、なければアプリ内）。
+  - リンクとマウスを乗せたリンクは、`SFPageView` のデリゲート（`-setPageDelegate:`、`SFPageViewDelegate`）で `SFMainWindowController` に伝えます。マウスを乗せたことは、`WKWebView` に API がないので、ユーザースクリプトから `WKScriptMessageHandler` で受け取ります。
+  - ポップアップの高さは、ページの高さをユーザースクリプトから受け取って合わせます（`SFPageViewContentHeightDidChangeNotification`）。
   - 本文の URL やページ内検索も、`SFThreadView` のメソッド（`-pageURL`、`-findString:forward:`）を通します。`SFMainWindowController` からは `-selectedThreadView` で選択中の本文を取ります。
-  - WKWebView への移行で置き換える機能と確認の手順は `docs/wkwebview-migration.md` にあります。
+  - WKWebView への移行で置き換えた機能と確認の手順は `docs/wkwebview-migration.md` にあります。
   - 本文の WebView のレスポンダーチェーンは差し替えないでください（#44。最初のページがスクロールしなくなります）。
-- **スレッドとメインスレッド**（#9）: `SFThread` / `Ch2Thread` の更新・通知と WebView の操作はメインスレッドで行います。本文の `SFThreadSchemeHandler` はメインスレッドで動きます。ポップアップ用の `SFURLProtocol` は CFNetwork のスレッドで動くので、スレの更新と HTML 生成はメインスレッドで行い、結果だけを読み込みを始めたスレッドで client に渡しています。旧 WebView（WebKitLegacy）をメインスレッド以外から触ると例外で終了します。
+- **スレッドとメインスレッド**（#9）: `SFThread` / `Ch2Thread` の更新・通知と WebView の操作はメインスレッドで行います。`SFThreadSchemeHandler` はメインスレッドで動きます。
 - **通信（NSURLSession）**（#24、#25、#26）: 板一覧（`Ch2BoardTree`）・スレッド一覧（`Ch2Board`）・画像（`SFImageWindowController`）・DAT（`Ch2Thread -update`）・書き込み（`Ch2Thread -postWithName:mail:body:completionHandler:`）は、すべて `NSURLSession` で非同期に通信します。`NSURLConnection` と同期通信は使わないでください。
   - 結果はメインスレッドで扱います（デリゲートのキューに `[NSOperationQueue mainQueue]` を指定するか、完了ハンドラから `dispatch_async(dispatch_get_main_queue(), ...)`）。
   - 取り消したあとに届いた応答は捨てます（`-cancel`、セッションやタスクが今のものか確認する）。板を離れたとき（`SFNormalBoard` の解放）や画像ウインドウを閉じたときは取り消します。
@@ -182,6 +184,6 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
 open build/Build/Products/Release/SevenFour.app
 ```
 
-- 起動するとメインウィンドウ（左ペインの板一覧・スレッド一覧・タブ付き WebView）が表示されれば OK です。
+- 起動するとメインウィンドウ（左ペインの板一覧・スレッド一覧・タブ付きの本文）が表示されれば OK です。
 - 変更後は少なくとも、Universal ビルドとテスト（「テスト」を参照）が通ること、arm64 で起動することを確認してください。
 - Intel 版は Intel Mac、または Rosetta 2 が入った Apple silicon Mac で `arch -x86_64 .../SevenFour` を実行して確認します。

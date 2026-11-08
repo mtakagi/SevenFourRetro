@@ -2,51 +2,10 @@
 
 #import "SFThreadView.h"
 
-#import "SFAppController.h"
-#import "SFDocument.h"
 #import "SFThread.h"
 #import "SFThreadFactory.h"
 #import "SFThreadHTMLFormatter.h"
-#import "SFThreadSchemeHandler.h"
 #import <OgreKit/OgreKit.h>
-
-// The name the hover script posts to.
-static NSString* const HOVER_MESSAGE = @"sevenfourHover";
-
-// Reports the link under the mouse: WKWebView has no API for it, so a
-// script posts {href, label, option} (or null off links) on mouseover.
-static NSString* const HOVER_SCRIPT =
-    @"(function () {\n"
-    @"  var last = null;\n"
-    @"  document.addEventListener('mouseover', function (e) {\n"
-    @"    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;\n"
-    @"    var href = a ? a.href : null;\n"
-    @"    if (href === last) return;\n"
-    @"    last = href;\n"
-    @"    window.webkit.messageHandlers.sevenfourHover.postMessage(\n"
-    @"      a ? { href: href, label: a.textContent, option: e.altKey } : null);\n"
-    @"  }, true);\n"
-    @"})();\n";
-
-// Holds the view without retaining it: the user content controller retains
-// its message handlers, and the view retains the controller.
-@interface SFThreadViewHoverHandler : NSObject <WKScriptMessageHandler> {
-@public
-    SFThreadView* view_;
-}
-@end
-
-@interface SFThreadView (Hover)
-- (void) hoverMessage: (id) body;
-@end
-
-@implementation SFThreadViewHoverHandler
-- (void) userContentController: (WKUserContentController*) controller
-       didReceiveScriptMessage: (WKScriptMessage*) message
-{
-    [view_ hoverMessage: [message body]];
-}
-@end
 
 @implementation SFThreadView
 
@@ -85,11 +44,6 @@ static NSString* const HOVER_SCRIPT =
 
 #pragma mark Page
 
-- (void) setThreadDelegate: (id) delegate
-{
-    threadDelegate_ = delegate;
-}
-
 - (void) setPageCount: (int) count
 {
     pageCount_ = count;
@@ -98,37 +52,6 @@ static NSString* const HOVER_SCRIPT =
 - (NSURL*) pageURL
 {
     return [self URL];
-}
-
-- (void) findString: (NSString*) string forward: (BOOL) forward
-{
-    if ([string length] == 0) {
-        return;
-    }
-    WKFindConfiguration* config = [[[WKFindConfiguration alloc] init] autorelease];
-    [config setBackwards: ! forward];
-    [config setCaseSensitive: NO];
-    [config setWraps: NO];
-    [self findString: string withConfiguration: config completionHandler: ^(WKFindResult* result) {}];
-}
-
-- (void) hoverMessage: (id) body
-{
-    NSURL* url = nil;
-    NSString* label = nil;
-    BOOL option = NO;
-    if ([body isKindOfClass: [NSDictionary class]]) {
-        NSString* href = [body objectForKey: @"href"];
-        if ([href isKindOfClass: [NSString class]]) {
-            url = [NSURL URLWithString: href];
-        }
-        label = [body objectForKey: @"label"];
-        if (! [label isKindOfClass: [NSString class]]) {
-            label = nil;
-        }
-        option = [[body objectForKey: @"option"] boolValue];
-    }
-    [threadDelegate_ threadView: self mouseOverURL: url label: label option: option];
 }
 
 #pragma mark Thread
@@ -249,24 +172,11 @@ static NSString* const HOVER_SCRIPT =
 
 #pragma mark WKNavigationDelegate
 
-- (void) webView: (WKWebView*) webView
-decidePolicyForNavigationAction: (WKNavigationAction*) action
- decisionHandler: (void (^)(WKNavigationActionPolicy)) decisionHandler
-{
-	NSURL* url = [[action request] URL];
-	BOOL background = ([action modifierFlags] & NSEventModifierFlagCommand) != 0;
-	BOOL load = YES;
-	if (threadDelegate_) {
-		load = [threadDelegate_ threadView: self shouldLoadURL: url inBackground: background];
-	}
-	decisionHandler(load ? WKNavigationActionPolicyAllow : WKNavigationActionPolicyCancel);
-}
-
 - (void) webView: (WKWebView*) webView didStartProvisionalNavigation: (WKNavigation*) navigation
 {
 	isPageLoaded_ = NO;
 	pageCount_ = -1;
-	[threadDelegate_ threadViewDidStartLoading: self];
+	[[self pageDelegate] threadViewDidStartLoading: self];
 }
 
 - (void) webView: (WKWebView*) webView didCommitNavigation: (WKNavigation*) navigation
@@ -293,65 +203,23 @@ decidePolicyForNavigationAction: (WKNavigationAction*) action
 	if (visibleCount_ < [th count]) {
 		[self appendMessagesOfThread: th];
 	}
-	[threadDelegate_ threadViewDidFinishLoading: self];
-}
-
-#pragma mark WKUIDelegate
-
-- (void) webView: (WKWebView*) webView
-runJavaScriptAlertPanelWithMessage: (NSString*) message
-initiatedByFrame: (WKFrameInfo*) frame
-completionHandler: (void (^)(void)) completionHandler
-{
-	NSLog(@"JavaScript - alert: %@", message);
-	completionHandler();
-}
-
-// A link that opens a new window (target=_blank) is decided like any other.
-- (WKWebView*) webView: (WKWebView*) webView
-createWebViewWithConfiguration: (WKWebViewConfiguration*) configuration
-   forNavigationAction: (WKNavigationAction*) action
-        windowFeatures: (WKWindowFeatures*) features
-{
-	NSURL* url = [[action request] URL];
-	BOOL background = ([action modifierFlags] & NSEventModifierFlagCommand) != 0;
-	if ([threadDelegate_ threadView: self shouldLoadURL: url inBackground: background]) {
-		[self loadRequest: [action request]];
-	}
-	return nil;
+	[[self pageDelegate] threadViewDidFinishLoading: self];
 }
 
 #pragma mark Override
 
 - (id) initWithFrame: (NSRect) frame
 {
-	WKWebViewConfiguration* config = [[[WKWebViewConfiguration alloc] init] autorelease];
-	[config setURLSchemeHandler: [SFThreadSchemeHandler sharedHandler] forURLScheme: @"sevenfour"];
-
-	SFThreadViewHoverHandler* hover = [[[SFThreadViewHoverHandler alloc] init] autorelease];
-	WKUserContentController* content = [config userContentController];
-	[content addScriptMessageHandler: hover name: HOVER_MESSAGE];
-	WKUserScript* script = [[[WKUserScript alloc] initWithSource: HOVER_SCRIPT
-	                                               injectionTime: WKUserScriptInjectionTimeAtDocumentEnd
-	                                            forMainFrameOnly: YES] autorelease];
-	[content addUserScript: script];
-
-    self = [super initWithFrame: frame configuration: config];
+    self = [super initWithFrame: frame];
 	if (! self) {
 		return nil;
 	}
-	hover->view_ = self;
-	hoverHandler_ = [hover retain];
-
     visibleCount_ = 0;
     pageCount_ = -1;
     isPageLoaded_ = NO;
     isFragmentLoading_ = NO;
-	[self setNavigationDelegate: self];
-	[self setUIDelegate: self];
 	[self addObserver: self forKeyPath: @"title" options: 0 context: NULL];
 	[self addObserver: self forKeyPath: @"loading" options: 0 context: NULL];
-
     return self;
 }
 
@@ -360,18 +228,8 @@ createWebViewWithConfiguration: (WKWebViewConfiguration*) configuration
 	[self removeObserver: self forKeyPath: @"title"];
 	[self removeObserver: self forKeyPath: @"loading"];
 	[[NSNotificationCenter defaultCenter] removeObserver: self];
-	((SFThreadViewHoverHandler*) hoverHandler_)->view_ = nil;
-	[[[self configuration] userContentController] removeScriptMessageHandlerForName: HOVER_MESSAGE];
-	[hoverHandler_ release];
-	[self setNavigationDelegate: nil];
-	[self setUIDelegate: nil];
 	[thread_ release];
     [super dealloc];
-}
-
-- (BOOL) acceptsFirstResponder
-{
-	return YES;
 }
 
 @end

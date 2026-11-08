@@ -4,7 +4,6 @@
 
 #import "SFDocument.h"
 #import "SFMainWindowController.h"
-#import "SFURLProtocol.h"
 #import "SFThreadHTMLFormatter.h"
 #import "FontButton.h"
 #import "Ch2Board.h"
@@ -244,7 +243,6 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
 		
         [self setupSupportDirectory];
 		
-		[NSURLProtocol registerClass: [SFURLProtocol class]];
         [SFThreadHTMLFormatter reloadTemplates];
     }
 }
