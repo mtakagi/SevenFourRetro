@@ -6,6 +6,10 @@
 // bbs.cgi page would write them.
 NSData* SFTestShiftJIS(NSString* s);
 
+// YES when s contains part. Unlike -rangeOfString:, a nil s is NO: messaging
+// nil returns a zero range, whose location 0 would look like a match.
+BOOL SFTestContains(NSString* s, NSString* part);
+
 // s escaped for an HTML attribute value (&, <, >, " and ' as &#x27;).
 NSString* SFTestHTMLEscape(NSString* s);
 

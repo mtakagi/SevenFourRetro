@@ -51,10 +51,10 @@ static NSString* const ERROR_PAGE =
     server_ = [[SFTestHTTPServer alloc] initWithHandler: ^SFTestHTTPResponse* (SFTestHTTPRequest* request) {
         NSDictionary* html = [NSDictionary dictionaryWithObject: @"text/html; charset=Shift_JIS" forKey: @"Content-Type"];
         NSDictionary* form = [request formFields];
-        if ([[form objectForKey: @"MESSAGE"] rangeOfString: @"ERRORTEST"].location != NSNotFound) {
+        if (SFTestContains([form objectForKey: @"MESSAGE"], @"ERRORTEST")) {
             return [SFTestHTTPResponse responseWithStatus: 200 headers: html body: SFTestShiftJIS(ERROR_PAGE)];
         }
-        if ([[form objectForKey: @"MESSAGE"] rangeOfString: @"COMMENTTEST"].location != NSNotFound) {
+        if (SFTestContains([form objectForKey: @"MESSAGE"], @"COMMENTTEST")) {
             return [SFTestHTTPResponse responseWithStatus: 200 headers: html
                                                      body: SFTestShiftJIS(@"<html><!-- 2ch_X:true --><body>ok</body></html>")];
         }
@@ -63,7 +63,7 @@ static NSString* const ERROR_PAGE =
         BOOL accepted;
         @synchronized (confirmed_) {
             accepted = [[request path] hasSuffix: @"bbs.cgi?guid=ON"]
-                && [cookie rangeOfString: @"MID=confirmed"].location != NSNotFound
+                && SFTestContains(cookie, @"MID=confirmed")
                 && [[form objectForKey: @"feature"] isEqualToString: @"確認済み&ok"]
                 && [[form objectForKey: @"submit"] isEqualToString: @"上記全てを承諾して書き込む"]
                 && [[form objectForKey: @"time"] isEqualToString: [confirmed_ objectForKey: @"time"]]
@@ -130,7 +130,7 @@ static NSString* const ERROR_PAGE =
     XCTAssertTrue(llabs(time - (long long) [[NSDate date] timeIntervalSince1970]) < 60);
 
     // The confirmation text is shown to the user.
-    XCTAssertTrue([[thread alertMessage] rangeOfString: @"この書き込みで本当にいいですか？"].location != NSNotFound);
+    XCTAssertTrue(SFTestContains([thread alertMessage], @"この書き込みで本当にいいですか？"));
 }
 
 - (void) testConfirmationFormIsSentBackUnchanged
@@ -146,7 +146,7 @@ static NSString* const ERROR_PAGE =
     SFTestHTTPRequest* request = [[server_ requests] lastObject];
     XCTAssertEqualObjects([request path], @"/test/bbs.cgi?guid=ON");
     XCTAssertTrue([[request header: @"Referer"] hasSuffix: @"/test/bbs.cgi"]);
-    XCTAssertTrue([[request header: @"Cookie"] rangeOfString: @"MID=confirmed"].location != NSNotFound);
+    XCTAssertTrue(SFTestContains([request header: @"Cookie"], @"MID=confirmed"));
     NSDictionary* second = [request formFields];
     XCTAssertEqualObjects([second objectForKey: @"time"], [first objectForKey: @"time"]);
     XCTAssertEqualObjects([second objectForKey: @"submit"], @"上記全てを承諾して書き込む");

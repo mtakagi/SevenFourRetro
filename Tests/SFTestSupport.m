@@ -35,6 +35,11 @@ NSData* SFTestShiftJIS(NSString* s)
     return result;
 }
 
+BOOL SFTestContains(NSString* s, NSString* part)
+{
+    return s != nil && [s rangeOfString: part].location != NSNotFound;
+}
+
 NSString* SFTestHTMLEscape(NSString* s)
 {
     NSMutableString* m = [NSMutableString stringWithString: s];
