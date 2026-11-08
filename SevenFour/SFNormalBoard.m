@@ -70,6 +70,9 @@
 
 - (void) dealloc
 {
+	// A board that is switched away from stops loading and reports nothing.
+	[[NSNotificationCenter defaultCenter] removeObserver: self];
+	[board_ cancel];
 	[url_ release];
 	[board_ release];
 	[threads_ release];

@@ -88,11 +88,34 @@ NSString* Ch2BoardDidFinishParsingNotification = @"Ch2BoardDidFinishParsingNotif
     [req setValue: userAgent_ forHTTPHeaderField: @"User-Agent"];
     [req setValue: @"gzip" forHTTPHeaderField: @"Accept-Encoding"];
     
-    NSURLConnection* connection;
-    connection = [[NSURLConnection alloc] initWithRequest: req delegate: self];
-    if (connection) {
-        receivedData_ = [[NSMutableData alloc] init];
-    }
+    // The delegate methods run on the main thread, where the model and the
+    // UI live. The session keeps the board alive until it is invalidated.
+    session_ = [[NSURLSession sessionWithConfiguration: [NSURLSessionConfiguration defaultSessionConfiguration]
+                                              delegate: self
+                                         delegateQueue: [NSOperationQueue mainQueue]] retain];
+    receivedData_ = [[NSMutableData alloc] init];
+    failedStatus_ = NO;
+    contentLength_ = 0;
+    estimatedProgress_ = 0;
+    [[session_ dataTaskWithRequest: req] resume];
+}
+
+- (void) finishUpdating
+{
+    [session_ finishTasksAndInvalidate];
+    [session_ release];
+    session_ = nil;
+    [receivedData_ release];
+    receivedData_ = nil;
+}
+
+- (void) cancel
+{
+    [session_ invalidateAndCancel];
+    [session_ release];
+    session_ = nil;
+    [receivedData_ release];
+    receivedData_ = nil;
 }
 
 // One line of subject.txt: "<dat number>.dat<><title> (<count>)".
@@ -168,36 +191,45 @@ NSString* Ch2BoardDidFinishParsingNotification = @"Ch2BoardDidFinishParsingNotif
     }
 }
 
-// NSURLConnection
-- (void) connection: (NSURLConnection*) connection
-    didReceiveResponse: (NSURLResponse*) resp
+#pragma mark NSURLSessionDataDelegate
+
+- (void) URLSession: (NSURLSession*) session
+           dataTask: (NSURLSessionDataTask*) task
+ didReceiveResponse: (NSURLResponse*) resp
+  completionHandler: (void (^)(NSURLSessionResponseDisposition)) completionHandler
 {
-    NSLog(@"Ch2Board - connection:didReceiveResponce:");
-        
+    NSLog(@"Ch2Board - didReceiveResponse:");
+    
+    if (session != session_) {
+        completionHandler(NSURLSessionResponseCancel);
+        return;
+    }
+    
     NSHTTPURLResponse* http = (NSHTTPURLResponse*) resp;
     if ([http statusCode] == 200) {
-        contentLength_ = [[[http allHeaderFields] objectForKey: @"Content-Length"] intValue];
+        contentLength_ = [http expectedContentLength];
         [receivedData_ setLength: 0];
+        completionHandler(NSURLSessionResponseAllow);
     } else {
-        NSLog(@"Ch2Board: HTTP status code = %d", [http statusCode]);
-        [connection cancel];
-        // The update is over: allow the next one.
-        [connection release];
-        [receivedData_ release];
-        receivedData_ = nil;
-
-        [[NSNotificationCenter defaultCenter]
-        postNotificationName: Ch2BoardDidFinishParsingNotification
-                      object: self
-                    userInfo: nil];
+        NSLog(@"Ch2Board: HTTP status code = %ld", (long) [http statusCode]);
+        // The update ends in -URLSession:task:didCompleteWithError:.
+        failedStatus_ = YES;
+        completionHandler(NSURLSessionResponseCancel);
     }
 }
 
-- (void) connection: (NSURLConnection*) connection
-    didReceiveData: (NSData*) data
+- (void) URLSession: (NSURLSession*) session
+           dataTask: (NSURLSessionDataTask*) task
+     didReceiveData: (NSData*) data
 {
+    if (session != session_) {
+        return;
+    }
+    
     [receivedData_ appendData: data];
-    estimatedProgress_ = (float) [receivedData_ length] / contentLength_;
+    if (contentLength_ > 0) {
+        estimatedProgress_ = (float) [receivedData_ length] / contentLength_;
+    }
 
     [[NSNotificationCenter defaultCenter]
             postNotificationName: Ch2BoardLoadingNotification
@@ -205,53 +237,55 @@ NSString* Ch2BoardDidFinishParsingNotification = @"Ch2BoardDidFinishParsingNotif
                         userInfo: nil];
 }
 
-- (void) connection: (NSURLConnection*) connection
-    didFailWithError: (NSError*) error
+- (void) URLSession: (NSURLSession*) session
+               task: (NSURLSessionTask*) task
+didCompleteWithError: (NSError*) error
 {
-    NSLog(@"Ch2Board - connection:didFailWithError:");
-
-    [connection release];
-    [receivedData_ release];
-    receivedData_ = nil;
-	
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName: Ch2BoardDidFinishParsingNotification
-                      object: self
-                    userInfo: nil];
-
-	[delegate_ board: self didFailWithError: error];
-}
-
-- (void) connectionDidFinishLoading: (NSURLConnection*) connection
-{
-    NSLog(@"Ch2Board - connectionDidFinishLoading:");
-
-    if ([receivedData_ length] == 0) {
-        NSLog(@"Ch2Board - connectionDidFinishLoading: [receivedData_ length] == 0");
-    } else {    
-        NSString* content;
-        
-        TECConverter* converter;
-        converter = [[TECConverter alloc] initWithEncoding: NSShiftJISStringEncoding];
-        content = [converter convertToString: receivedData_];
-        [converter release];
-        
-        if (content != nil) {
-            [self parse: content];
-        } else {
-            NSLog(@"Ch2Board: Failed to convert encoding.");
-        }
+    // A cancelled or replaced update reports nothing.
+    if (session != session_) {
+        return;
     }
-
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName: Ch2BoardDidFinishParsingNotification
-                      object: self
-                    userInfo: nil];
     
-    [connection release];
+    // Keep self alive: the session releases its delegate once invalidated.
+    [[self retain] autorelease];
     
-    [receivedData_ release];
-    receivedData_ = nil;
+    if (failedStatus_) {
+        // An HTTP error ends the update quietly, as before.
+        [self finishUpdating];
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName: Ch2BoardDidFinishParsingNotification
+                          object: self
+                        userInfo: nil];
+    } else if (error) {
+        NSLog(@"Ch2Board - didCompleteWithError: %@", error);
+        [self finishUpdating];
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName: Ch2BoardDidFinishParsingNotification
+                          object: self
+                        userInfo: nil];
+        [delegate_ board: self didFailWithError: error];
+    } else {
+        NSLog(@"Ch2Board - didComplete");
+        if ([receivedData_ length] == 0) {
+            NSLog(@"Ch2Board - [receivedData_ length] == 0");
+        } else {
+            TECConverter* converter;
+            converter = [[TECConverter alloc] initWithEncoding: NSShiftJISStringEncoding];
+            NSString* content = [converter convertToString: receivedData_];
+            [converter release];
+            
+            if (content != nil) {
+                [self parse: content];
+            } else {
+                NSLog(@"Ch2Board: Failed to convert encoding.");
+            }
+        }
+        [self finishUpdating];
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName: Ch2BoardDidFinishParsingNotification
+                          object: self
+                        userInfo: nil];
+    }
 }
 
 #pragma mark Override
@@ -261,6 +295,7 @@ NSString* Ch2BoardDidFinishParsingNotification = @"Ch2BoardDidFinishParsingNotif
     
     subjects_ = [[NSMutableArray alloc] init];
     receivedData_ = nil;
+    session_ = nil;
     contentLength_ = 0;
     userAgent_ = nil;
     
@@ -272,10 +307,11 @@ NSString* Ch2BoardDidFinishParsingNotification = @"Ch2BoardDidFinishParsingNotif
 - (void) dealloc
 {
     // NSLog(@"Board - dealloc");
-    [subjects_ dealloc];
-    [receivedData_ dealloc];
-    
+    [self cancel];
+    [subjects_ release];
     [url_ release];
+    [userAgent_ release];
+    [delegate_ release];
     
     [super dealloc];
 }

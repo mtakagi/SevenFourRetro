@@ -24,6 +24,11 @@
 NSMutableDictionary* sharedBoardTree_;
 NSMutableArray* sharedSmartBoards_;
 
+NSString* SFBoardTreeDidChangeNotification = @"SFBoardTreeDidChangeNotification";
+
+// The board list being downloaded, if any (one at a time for all windows).
+static Ch2BoardTree* updatingBoardTree_ = nil;
+
 @implementation SFDocument
 + (NSDictionary*) sharedBoardTree
 {
@@ -164,7 +169,14 @@ NSMutableArray* sharedSmartBoards_;
     [self  didChangeValueForKey: @"isWorking"];        
 }
 
-- (void) setupBoardTree
++ (NSString*) pathOfBoardTreePList
+{
+    return [NSString stringWithFormat: @"%@/BoardTree.plist", SF_SUPPORT_DIRECTORY];
+}
+
+// Rebuilds the shared tree from the smart boards and the given board list
+// (the "children" of a Ch2BoardTree).
++ (void) setupBoardTreeWithBoards: (NSArray*) boards
 {
     NSMutableArray* ary = [NSMutableArray array];
     
@@ -180,37 +192,76 @@ NSMutableArray* sharedSmartBoards_;
 			nil]];
 	}
 	
-    NSString* path;
-    path = [NSString stringWithFormat: @"%@/BoardTree.plist",  SF_SUPPORT_DIRECTORY];
-    
-    NSDictionary* tree;
-    tree = [[NSDictionary alloc] initWithContentsOfFile: path];
-    if (! tree) {
-        [self updateBoardTreePList];
+    if (boards) {
+        [ary addObjectsFromArray: boards];
     }
-    tree = [[NSDictionary alloc] initWithContentsOfFile: path];
-
-    [ary addObjectsFromArray: [tree objectForKey: @"children"]];
     [sharedBoardTree_ setObject: ary forKey: @"children"];
 }
 
-- (void) updateBoardTreePList
+// Rebuilds the shared tree from the smart boards and the saved board list.
++ (void) setupBoardTree
 {
-    NSString* path;
-    path = [NSString stringWithFormat: @"%@/BoardTree.plist", SF_SUPPORT_DIRECTORY];
+    NSDictionary* tree;
+    tree = [NSDictionary dictionaryWithContentsOfFile: [self pathOfBoardTreePList]];
+    [self setupBoardTreeWithBoards: [tree objectForKey: @"children"]];
+}
 
-    NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
++ (void) showBoardTreeError: (NSError*) error
+{
+    NSWindow* window = [NSApp mainWindow];
+    if (! window) {
+        return;
+    }
+    NSAlert* alert = [[[NSAlert alloc] init] autorelease];
+    [alert setMessageText: _(@"Failed to update the board list.")];
+    [alert setInformativeText: [error localizedDescription]];
+    [alert addButtonWithTitle: @"OK"];
+    [alert beginSheetModalForWindow: window completionHandler: nil];
+}
+
+// Downloads the board list in the background. When it arrives, it is saved
+// to BoardTree.plist and SFBoardTreeDidChangeNotification is posted. On
+// failure the saved list is kept.
++ (void) updateBoardTree
+{
+    if (updatingBoardTree_) {
+        return;
+    }
     
-    NSURL* url;
-	url = [NSURL URLWithString: [defaults stringForKey: @"URLOfBoardTree"]];
+    NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+    NSURL* url = [NSURL URLWithString: [defaults stringForKey: @"URLOfBoardTree"]];
+    if (! url) {
+        return;
+    }
+    
+    updatingBoardTree_ = [[Ch2BoardTree alloc] initWithURL: url];
+    [updatingBoardTree_ updateWithCompletionHandler: ^(NSError* error) {
+        Ch2BoardTree* bt = [updatingBoardTree_ autorelease];
+        updatingBoardTree_ = nil;
         
-    Ch2BoardTree* bt;
-    bt = [[Ch2BoardTree alloc] initWithURL: url];
-    [bt update];
-    [[bt tree] writeToFile: path atomically: YES];
+        if (error) {
+            [self showBoardTreeError: error];
+            return;
+        }
+        if (! [[bt tree] writeToFile: [self pathOfBoardTreePList] atomically: YES]) {
+            NSLog(@"SFDocument: Failed to save %@", [self pathOfBoardTreePList]);
+        }
+        [self setupBoardTreeWithBoards: [[bt tree] objectForKey: @"children"]];
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName: SFBoardTreeDidChangeNotification
+                          object: nil];
+    }];
+}
 
-    [bt release];
-}    
++ (BOOL) isUpdatingBoardTree
+{
+    return updatingBoardTree_ != nil;
+}
+
+- (IBAction) updateBoardTreePList
+{
+    [[self class] updateBoardTree];
+}
 
 - (NSURL*) URLOfBoard
 {
@@ -251,7 +302,11 @@ NSMutableArray* sharedSmartBoards_;
     // Board Tree
 	if (! sharedBoardTree_) {
 		sharedBoardTree_ = [[NSMutableDictionary alloc] init];
-		[self setupBoardTree];
+		[[self class] setupBoardTree];
+		// First launch: show the smart boards now, the board list when it arrives.
+		if (! [[NSFileManager defaultManager] fileExistsAtPath: [[self class] pathOfBoardTreePList]]) {
+			[[self class] updateBoardTree];
+		}
 	}
 	
     workingJobs_ = 0;

@@ -92,15 +92,52 @@ static NSMutableSet* opendURLs_ = nil;
 
     NSURLRequest* req = [NSURLRequest requestWithURL: url];
     
-    NSURLConnection* connection;
-    connection = [[NSURLConnection alloc] initWithRequest: req delegate: self];
-    if (connection) {
-        receivedData_ = [[NSMutableData alloc] init];
-    }
+    // The delegate methods run on the main thread. The session keeps this
+    // controller alive until it is invalidated (done, failed or closed).
+    [self cancelLoading];
+    session_ = [[NSURLSession sessionWithConfiguration: [NSURLSessionConfiguration defaultSessionConfiguration]
+                                              delegate: self
+                                         delegateQueue: [NSOperationQueue mainQueue]] retain];
+    receivedData_ = [[NSMutableData alloc] init];
+    failedStatus_ = NO;
+    [[session_ dataTaskWithRequest: req] resume];
 
+    [url_ release];
     url_ = [url retain];
+    
+    // A late reply must not show up in (or keep alive) a closed window.
+    [[NSNotificationCenter defaultCenter] removeObserver: self
+                                                    name: NSWindowWillCloseNotification
+                                                  object: nil];
+    [[NSNotificationCenter defaultCenter] addObserver: self
+                                             selector: @selector(windowWillClose:)
+                                                 name: NSWindowWillCloseNotification
+                                               object: [self window]];
         
     return;
+}
+
+- (void) cancelLoading
+{
+    [session_ invalidateAndCancel];
+    [session_ release];
+    session_ = nil;
+    [receivedData_ release];
+    receivedData_ = nil;
+}
+
+- (void) finishLoading
+{
+    [session_ finishTasksAndInvalidate];
+    [session_ release];
+    session_ = nil;
+    [receivedData_ release];
+    receivedData_ = nil;
+}
+
+- (void) windowWillClose: (NSNotification*) n
+{
+    [self cancelLoading];
 }
 
 - (IBAction) openURL: (id) sender
@@ -108,49 +145,69 @@ static NSMutableSet* opendURLs_ = nil;
     [[NSWorkspace sharedWorkspace] openURL: url_];
 }
 
-// NSURLConnection
-- (void) connection: (NSURLConnection*) connection
+#pragma mark NSURLSessionDataDelegate
+
+- (void) URLSession: (NSURLSession*) session
+           dataTask: (NSURLSessionDataTask*) task
  didReceiveResponse: (NSURLResponse*) resp
+  completionHandler: (void (^)(NSURLSessionResponseDisposition)) completionHandler
 {
+    if (session != session_) {
+        completionHandler(NSURLSessionResponseCancel);
+        return;
+    }
+    
     NSHTTPURLResponse* http = (NSHTTPURLResponse*) resp;
     
     if ([http statusCode] == 200) {
-        NSDictionary* headers = [http allHeaderFields];
-        [indicator setMaxValue:
-            [[headers objectForKey: @"Content-Length"] intValue]];
+        long long length = [http expectedContentLength];
+        if (length > 0) {
+            [indicator setMaxValue: length];
+        }
+        completionHandler(NSURLSessionResponseAllow);
     } else {
 		[messageField setStringValue: 
 			[NSHTTPURLResponse localizedStringForStatusCode: [http statusCode]]];
-        [connection cancel];
+        failedStatus_ = YES;
+        completionHandler(NSURLSessionResponseCancel);
     }
 }
 
-- (void) connection: (NSURLConnection*) connection
+- (void) URLSession: (NSURLSession*) session
+           dataTask: (NSURLSessionDataTask*) task
      didReceiveData: (NSData*) data
 {
+    if (session != session_) {
+        return;
+    }
     [receivedData_ appendData: data];
     [indicator setDoubleValue: [receivedData_ length]];
 }
 
-- (void) connection: (NSURLConnection*) connection
-   didFailWithError: (NSError*) error
+- (void) URLSession: (NSURLSession*) session
+               task: (NSURLSessionTask*) task
+didCompleteWithError: (NSError*) error
 {
-    [connection release];
-    [receivedData_ dealloc];
-    receivedData_ = nil;
-}
-
-- (void) connectionDidFinishLoading: (NSURLConnection*) connection
-{
-    [connection release];
-	
+    // Closed, or replaced by another load.
+    if (session != session_) {
+        return;
+    }
+    
+    // Keep self alive: the session releases its delegate once invalidated.
+    [[self retain] autorelease];
+    
 	[indicator setIndeterminate: YES];
     [indicator stopAnimation: nil];
-
-	[self showImage: receivedData_];
-	
-    [receivedData_ release];
-    receivedData_ = nil;
+    
+    if (failedStatus_) {
+        // The status text is already shown.
+    } else if (error) {
+        [messageField setStringValue: [error localizedDescription]];
+    } else {
+        [self showImage: receivedData_];
+    }
+    
+    [self finishLoading];
 }
 
 - (void) awakeFromNib
@@ -175,6 +232,9 @@ static NSMutableSet* opendURLs_ = nil;
 
 - (void) dealloc
 {
+    [[NSNotificationCenter defaultCenter] removeObserver: self];
+    [self cancelLoading];
+    
     if (url_) {
         if (! opendURLs_) {
             opendURLs_ = [[NSMutableSet alloc] init];
@@ -182,8 +242,6 @@ static NSMutableSet* opendURLs_ = nil;
         [opendURLs_ removeObject: [url_ absoluteString]];
         [url_ release];
     }
-    
-    [receivedData_ release];
     
     [super dealloc];
 }

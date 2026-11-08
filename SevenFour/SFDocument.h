@@ -7,6 +7,10 @@
 @class SFThread;
 @class SFWindowController;
 
+// Posted on the main thread after the shared board tree was replaced with a
+// newly downloaded board list.
+extern NSString* SFBoardTreeDidChangeNotification;
+
 @interface SFDocument : NSDocument
 {        
     SFBoard* board_;
@@ -30,6 +34,8 @@
 // - (NSURL*) initialURL;
 
 + (NSDictionary*) sharedBoardTree;
++ (void) updateBoardTree;
++ (BOOL) isUpdatingBoardTree;
 
 - (BOOL) isOffline;
 

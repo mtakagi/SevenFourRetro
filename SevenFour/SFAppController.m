@@ -236,8 +236,11 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
                           isDirectory: &isDir] && isDir) {
             ;
         } else {
+            // With "Library/Application Support" too, which a new home lacks.
             [manager createDirectoryAtPath: SF_SUPPORT_DIRECTORY
-                                attributes: nil];
+               withIntermediateDirectories: YES
+                                attributes: nil
+                                     error: NULL];
         }
 		
 		

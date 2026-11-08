@@ -350,7 +350,12 @@ static SFMainWindowController* activeController_;
 
 - (IBAction) updateBoardTree: (id) sender
 {
-	[[self document] updateBoardTreePList];
+	[SFDocument updateBoardTree];
+}
+
+- (void) boardTreeDidChange: (NSNotification*) n
+{
+	[sidePaneController_ update];
 }
 
 - (IBAction) newTab: (id) sender
@@ -638,6 +643,11 @@ static SFMainWindowController* activeController_;
     [center addObserver: self
                selector: @selector(validateToolbarSoon:)
                    name: SFBoardDidFinishUpdatingNotification
+                 object: nil];
+    // A newly downloaded board list replaces the items of the side pane.
+    [center addObserver: self
+               selector: @selector(boardTreeDidChange:)
+                   name: SFBoardTreeDidChangeNotification
                  object: nil];
     
     // Tabbed WebView

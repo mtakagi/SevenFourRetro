@@ -1,7 +1,7 @@
 #import <Cocoa/Cocoa.h>
 
 
-@interface SFImageWindowController : NSWindowController {
+@interface SFImageWindowController : NSWindowController <NSURLSessionDataDelegate> {
     IBOutlet NSButton* imageView;
     IBOutlet NSProgressIndicator* indicator;
     IBOutlet NSBox* loadingBox;
@@ -10,6 +10,8 @@
     
     NSURL* url_;
     NSMutableData* receivedData_;
+    NSURLSession* session_;
+    BOOL failedStatus_;
 }
 
 + (BOOL) isOpened: (NSURL*) url;
