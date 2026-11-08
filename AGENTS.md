@@ -79,7 +79,7 @@ xcodebuild -project SevenFour.xcodeproj -scheme SevenFour -destination 'platform
 # 1 クラスだけ: -only-testing:SevenFourTests/Ch2ThreadPostTests
 ```
 
-- **アプリを起動しないテストです。** テスト対象のコード（`Ch2*.m`、`TEC.m`、互換シム）をテストバンドルに直接コンパイルしています（`project.yml` の `SevenFourTests`）。そのため、`~/Library/Application Support/SevenFour` や設定には触れません。新しいクラスをテストするときは、その `.m` を `project.yml` の `SevenFourTests` の `sources` に追加してください。AppKit の UI（`SF*Controller` など）はこの方式では扱えないので、下の手動確認で見ます。
+- **アプリを起動しないテストです。** テスト対象のコード（`Ch2*.m`、互換シム）をテストバンドルに直接コンパイルしています（`project.yml` の `SevenFourTests`）。そのため、`~/Library/Application Support/SevenFour` や設定には触れません。新しいクラスをテストするときは、その `.m` を `project.yml` の `SevenFourTests` の `sources` に追加してください。AppKit の UI（`SF*Controller` など）はこの方式では扱えないので、下の手動確認で見ます。
 - テストも MRC です（ARC 無効）。
 - **通信のテスト**は、テストプロセス内の HTTP サーバー `SFTestHTTPServer`（127.0.0.1 の空きポート）を使います。実際の URL 読み込み（Cookie、Range、リダイレクト）を通しつつ、応答はテストのブロックで組み立てます。テストの前後で 127.0.0.1 の Cookie を消し、`+[Ch2Thread forgetConfirmationFormData]` で確認ページの hidden 値も忘れさせてください。
 - 保存を伴うテスト（DAT のキャッシュ、SQLite）は `SFTestTemporaryDirectory()` の一時ディレクトリを使い、終わったら消します。
@@ -90,6 +90,7 @@ xcodebuild -project SevenFour.xcodeproj -scheme SevenFour -destination 'platform
   - `Ch2ThreadUpdateTests`: DAT の新規取得・差分取得・416・失敗・途中で切れた応答・Range を無視した 200・取り消し
   - `Ch2ThreadPostTests`: 書き込み（確認ページの再送、エラー、Shift_JIS）
   - `QuickLiteTests`: SQLite シム
+  - `Ch2ShiftJISTests`: Shift_JIS（CP932）の読み込み（拡張文字、壊れたバイト、途中で切れたデータ）
 
 ### 手動での確認（スモークテスト）
 
@@ -148,6 +149,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - 処理が終わったら `-validateToolbarSoon:` を呼んでツールバーを再検証すると、アニメーションが止まります。
   - セルやボタンに色付きで描くときは `NSImage+SFSymbols.h` の `+sf_imageWithSymbolName:pointSize:color:size:` を使います（テンプレート画像にならないので色がそのまま出ます。動的カラーはダークモードに追従します）。
   - 例外: タブの背景（`tab.png`）、アプリアイコン（`74.icns`）、分割バーの模様（`HTThreePaneSplitView.m`）はアイコンではないので画像のままです。
+- **Shift_JIS の読み込み**（#31）: 掲示板から受け取ったデータ（板一覧・subject.txt・DAT・bbs.cgi の応答）は `Ch2StringFromShiftJIS()`（`Ch2ShiftJIS.h`）で文字列にしてください。Windows と同じ CP932 として読み、壊れたバイトは U+FFFD に、末尾で切れた文字は捨てます。`-[NSString initWithData:encoding:]` は 1 バイトでも壊れていると全体が nil になるので使わないでください。旧 Text Encoding Converter（`TEC.m`）は削除しました。
 - ソースのエンコーディングは UTF-8 です。
 - **通信は HTTPS 前提です。** 現行 SDK では App Transport Security (ATS) が有効なため、平文 HTTP の通信はブロックされます。ATS の例外は設定していません。
   - 板一覧のデフォルトは `https://menu.5ch.io/bbsmenu.html` です（`SFAppController.m`）。

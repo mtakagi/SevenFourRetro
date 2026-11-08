@@ -44,7 +44,6 @@ targets:
     dependencies:
       - sdk: Cocoa.framework
       - sdk: WebKit.framework
-      - sdk: CoreServices.framework
       # SF Symbol effects (spinning toolbar icons)
       - sdk: Symbols.framework
       - sdk: libsqlite3.tbd
@@ -96,14 +95,13 @@ targets:
       - SevenFour/Ch2BoardTree.m
       - SevenFour/Ch2DatParser.m
       - SevenFour/Ch2Thread.m
-      - SevenFour/TEC.m
+      - SevenFour/Ch2ShiftJIS.m
       - SevenFour/Compat/OgreKit/OgreKit.m
       - SevenFour/Compat/QuickLite/QuickLite.m
       - path: SevenFour/Ch2Thread.strings
         buildPhase: resources
     dependencies:
       - sdk: Cocoa.framework
-      - sdk: CoreServices.framework
       - sdk: libsqlite3.tbd
     settings:
       base:

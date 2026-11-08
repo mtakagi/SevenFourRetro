@@ -68,4 +68,21 @@
     XCTAssertEqual([[Ch2DatParser parseData: [NSData data]] count], (NSUInteger) 0);
 }
 
+- (void) testBadByteInABodyKeepsTheThread
+{
+    // 名無し<>sage<>time<> 髙 X <>title  with 0xFF in place of X, then a
+    // second line. Before #31 a 髙 (IBM extension) was lost; a bad byte
+    // must not lose the thread.
+    NSMutableData* data = [NSMutableData data];
+    [data appendData: [@"N<>sage<>T<> " dataUsingEncoding: NSASCIIStringEncoding]];
+    const unsigned char taka[] = { 0xFB, 0xFC, 0x20, 0xFF, 0x20 };
+    [data appendBytes: taka length: sizeof(taka)];
+    [data appendData: [@"<>S\nN<><>T<> 2 <>\n" dataUsingEncoding: NSASCIIStringEncoding]];
+
+    NSArray* messages = [Ch2DatParser parseData: data];
+    XCTAssertEqual([messages count], (NSUInteger) 2);
+    XCTAssertEqualObjects([[messages objectAtIndex: 0] objectForKey: Ch2MessageBody], @" 髙 \uFFFD ");
+    XCTAssertEqualObjects([[messages objectAtIndex: 1] objectForKey: Ch2MessageBody], @" 2 ");
+}
+
 @end

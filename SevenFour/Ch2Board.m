@@ -1,6 +1,6 @@
 /* This file is not copyrighted and may be used freely. */
 #import "Ch2Board.h"
-#import "TEC.h"
+#import "Ch2ShiftJIS.h"
 
 NSString* Ch2BoardLoadingNotification = @"Ch2BoardLoadingNotification";
 NSString* Ch2BoardDidFinishLoadingNotification = @"Ch2BoardDidFinishLoadingNotification";
@@ -269,10 +269,7 @@ didCompleteWithError: (NSError*) error
         if ([receivedData_ length] == 0) {
             NSLog(@"Ch2Board - [receivedData_ length] == 0");
         } else {
-            TECConverter* converter;
-            converter = [[TECConverter alloc] initWithEncoding: NSShiftJISStringEncoding];
-            NSString* content = [converter convertToString: receivedData_];
-            [converter release];
+            NSString* content = Ch2StringFromShiftJIS(receivedData_);
             
             if (content != nil) {
                 [self parse: content];

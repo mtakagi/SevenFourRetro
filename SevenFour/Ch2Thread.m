@@ -2,7 +2,7 @@
 
 #import "Ch2Thread.h"
 #import "Ch2DatParser.h"
-#import "TEC.h"
+#import "Ch2ShiftJIS.h"
 
 #import <OgreKit/OgreKit.h>
 
@@ -839,13 +839,7 @@ didCompleteWithError: (NSError*) error
         return Ch2ThreadPostClientError;
     }
 
-    TECConverter* converter;
-    converter = [[TECConverter alloc] initWithEncoding: NSShiftJISStringEncoding];
-
-    NSString* content;
-    content = [converter convertToString: data];
-
-    [converter release];    
+    NSString* content = Ch2StringFromShiftJIS(data);
     
     
     Ch2ThreadPostResult result;

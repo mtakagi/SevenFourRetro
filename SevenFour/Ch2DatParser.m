@@ -1,7 +1,7 @@
 /* This file is not copyrighted and may be used freely. */
 
 #import "Ch2DatParser.h"
-#import "TEC.h"
+#import "Ch2ShiftJIS.h"
 
 NSString* Ch2MessageNumber = @"no";
 NSString* Ch2MessageName   = @"name";
@@ -110,14 +110,9 @@ NSString* Ch2MessageThreadSubject = @"subject";
 
 + (NSArray*) parseData: (NSData*) data
 {
-    TECConverter* converter;
-    converter = [[TECConverter alloc] initWithEncoding: NSShiftJISStringEncoding];
-    
-    NSString* content;
-    content = [converter convertToString: data];
+    NSString* content = Ch2StringFromShiftJIS(data);
     
     NSArray* result = [[self class] parse: content];
-    [converter release];
 	
 	return result;
 }
