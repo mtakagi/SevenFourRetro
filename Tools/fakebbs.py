@@ -184,6 +184,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, sjis(ERROR), page)
         if "LOSTTEST" in form.get("MESSAGE", ""):
             self.log_message("post accepted, reply cut: %r", form.get("MESSAGE"))
+            # Written like any accepted post: updating the thread shows it.
+            self.add_message(form)
             body = sjis(OK)
             self.send_response(200)
             self.send_header("Content-Type", page)
