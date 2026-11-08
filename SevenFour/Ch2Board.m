@@ -95,46 +95,38 @@ NSString* Ch2BoardDidFinishParsingNotification = @"Ch2BoardDidFinishParsingNotif
     }
 }
 
+// One line of subject.txt: "<dat number>.dat<><title> (<count>)".
+// A malformed line yields 0 for what can't be read instead of raising.
 - (NSMutableDictionary*) parseLine: (NSString*) line
 {
     NSMutableDictionary* result = [NSMutableDictionary dictionary];
+    line = [line stringByTrimmingCharactersInSet: [NSCharacterSet newlineCharacterSet]];
     NSArray* ary = [line componentsSeparatedByString: @"<>"];
     
     if ([ary count] != 2) {
         return nil;
     }
     
-    NSRange range;
-    NSString* title;
-    NSNumber* count;
-    NSString* filename;
-    NSNumber* no;
-    
-    title = [ary objectAtIndex: 1];
-    
-    // get (n) and convert to number
-    range = [title rangeOfString: @"(" 
-                         options: NSBackwardsSearch];
-    range.location += 1;
-    range.length = [title length] - range.location - 1;
-    count = [NSNumber numberWithInt:
-        [[title substringWithRange: range] intValue]];
-    
-    
-    // delete "(n)"
-    range.length = [title length] - (range.length + 2);
-    range.location = 0;    
-    title = [title substringWithRange: range];
+    // "title (n)": the count is the last parenthesized number. The space
+    // before it stays in the title, as before.
+    NSString* title = [ary objectAtIndex: 1];
+    int count = 0;
+    NSRange open = [title rangeOfString: @"(" options: NSBackwardsSearch];
+    if (open.location != NSNotFound && [title hasSuffix: @")"]) {
+        NSRange digits = NSMakeRange(open.location + 1, [title length] - open.location - 2);
+        count = [[title substringWithRange: digits] intValue];
+        title = [title substringToIndex: open.location];
+    }
     
     // "n.dat" to n
-    filename = [ary objectAtIndex: 0];
-    range = NSMakeRange(0, [filename length] - 4);
-    no = [NSNumber numberWithInt:
-        [[filename substringWithRange: range] intValue]];
+    NSString* filename = [ary objectAtIndex: 0];
+    if ([filename hasSuffix: @".dat"]) {
+        filename = [filename substringToIndex: [filename length] - 4];
+    }
     
-    [result setObject: no forKey: @"dat"];
+    [result setObject: [NSNumber numberWithInt: [filename intValue]] forKey: @"dat"];
     [result setObject: title forKey: @"subject"];
-    [result setObject: count forKey: @"count"];
+    [result setObject: [NSNumber numberWithInt: count] forKey: @"count"];
     
     return result;
 }
@@ -189,6 +181,10 @@ NSString* Ch2BoardDidFinishParsingNotification = @"Ch2BoardDidFinishParsingNotif
     } else {
         NSLog(@"Ch2Board: HTTP status code = %d", [http statusCode]);
         [connection cancel];
+        // The update is over: allow the next one.
+        [connection release];
+        [receivedData_ release];
+        receivedData_ = nil;
 
         [[NSNotificationCenter defaultCenter]
         postNotificationName: Ch2BoardDidFinishParsingNotification

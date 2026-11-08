@@ -57,7 +57,9 @@ NSString* Ch2MessageThreadSubject = @"subject";
     [result setObject: [ary objectAtIndex: 3] forKey: Ch2MessageBody];
 
     
-	if (! [[ary objectAtIndex: 4] isEqual: @""]) {
+	// The fifth field holds the thread title on the first line. A line
+	// without it is still a message.
+	if ([ary count] > 4 && ! [[ary objectAtIndex: 4] isEqual: @""]) {
 		[result setObject: [ary objectAtIndex: 4] forKey: Ch2MessageThreadSubject];
 	}
     
@@ -70,7 +72,7 @@ NSString* Ch2MessageThreadSubject = @"subject";
 	
     NSRange range;
     unsigned length;
-    int i, base;
+    int i, base = 0;
     
     range.location = 0;
     length = [source length];

@@ -404,11 +404,17 @@ static NSString* alertMessageFromHTML(NSString* html)
     return subject_;
 }
 
+// "host" or "host:port" of url.
+static NSString* hostAndPort(NSURL* url)
+{
+    return [url port] ? [NSString stringWithFormat: @"%@:%@", [url host], [url port]] : [url host];
+}
+
 - (NSURL*) URLOfHTML
 {
     NSString* s = [NSString stringWithFormat:
                       @"%@://%@/test/read.cgi%@/%d/",
-                      SFSchemeOfURL(board_), [board_ host], [board_ path], number_]; 
+                      SFSchemeOfURL(board_), hostAndPort(board_), [board_ path], number_]; 
     
     return [NSURL URLWithString: s];
 }
@@ -418,9 +424,14 @@ static NSString* alertMessageFromHTML(NSString* html)
 {
     NSString* s = [NSString stringWithFormat:
                                       @"%@://%@%@/dat/%d.dat",
-        SFSchemeOfURL(board), [board host], [board path], number]; 
+        SFSchemeOfURL(board), hostAndPort(board), [board path], number]; 
     
     return [NSURL URLWithString: s];
+}
+
++ (void) forgetConfirmationFormData
+{
+    [sharedFormData_ removeAllObjects];
 }
 
 - (NSURL*) URLOfDat
@@ -888,8 +899,9 @@ static NSData* formBody(NSArray* fields)
     }
 
     if (! POST_SUCCESS) {
+        // The bundle holding Ch2Thread.strings: the app, or the test bundle.
         NSBundle* bundle;
-        bundle = [NSBundle mainBundle];
+        bundle = [NSBundle bundleForClass: [Ch2Thread class]];
 
         POST_SUCCESS =  [bundle localizedStringForKey: @"POST_SUCCESS"
                                                 value: nil

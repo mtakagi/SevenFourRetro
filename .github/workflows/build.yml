@@ -51,6 +51,14 @@ jobs:
             esac
           done
 
+      # Offline regression tests (Tests/). They use synthetic data and an
+      # in-process HTTP server on 127.0.0.1, never a real board.
+      - name: Run tests
+        run: |
+          set -o pipefail
+          xcodebuild -project SevenFour.xcodeproj -scheme SevenFour \
+            -destination 'platform=macOS' -derivedDataPath build test
+
       - name: Archive app
         run: ditto -c -k --keepParent build/Build/Products/Release/SevenFour.app SevenFour.zip
 
