@@ -23,6 +23,10 @@ extern NSString* SFThreadDidFinishUpdatingNotification;
     NSMutableDictionary* idCounts_;
 	
     Ch2Thread* thread_;
+    // Sends the posts. Separate from thread_, which is replaced when the log
+    // is deleted, so a post being sent, its message and its confirmation
+    // page are never lost with it (#26).
+    Ch2Thread* poster_;
 }
 
 - (id) initWithNumber: (int) number
@@ -65,9 +69,11 @@ extern NSString* SFThreadDidFinishUpdatingNotification;
 - (int) countOfID: (NSString*) key;
 
 //
-- (Ch2ThreadPostResult) postWithName: (NSString*) name
-								mail: (NSString*) mail
-								body: (NSString*) body;
+// See -[Ch2Thread postWithName:mail:body:completionHandler:].
+- (BOOL) postWithName: (NSString*) name
+				 mail: (NSString*) mail
+				 body: (NSString*) body
+	completionHandler: (Ch2ThreadPostHandler) handler;
 - (NSString*) alertMessage;
 
 - (BOOL) isEqualToThread: (SFThread*) th;

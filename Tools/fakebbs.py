@@ -3,7 +3,7 @@
 
 Serves synthetic data only, and never forwards anything to a real board.
 
-  python3 Tools/fakebbs.py [--port 8765] [--delay SECONDS] [--log FILE]
+  python3 Tools/fakebbs.py [--port 8765] [--delay SECONDS] [--post-delay SECONDS] [--log FILE]
 
   /bbsmenu.html                 board list with one board, /test/
   /test/subject.txt             two threads
@@ -13,8 +13,11 @@ Serves synthetic data only, and never forwards anything to a real board.
       its own form (action ?guid=ON, the same time, submit value, hidden
       values); only that form sent back unchanged succeeds.
       A body containing ERRORTEST gets an error page.
+      A body containing LOSTTEST is accepted, but the reply breaks off
+      (the client can't tell whether the post was written).
 
 --delay slows every GET down, e.g. to watch the spinning update icons.
+--post-delay slows every POST down, e.g. to use the window while posting.
 """
 import argparse
 import datetime
@@ -89,11 +92,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send(404, b"")
 
     def do_POST(self):
+        time.sleep(self.server.post_delay)
         body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("ascii", "replace")
         form = {k: v[0] for k, v in urllib.parse.parse_qs(body, encoding="shift_jis", keep_blank_values=True).items()}
         page = "text/html; charset=Shift_JIS"
         if "ERRORTEST" in form.get("MESSAGE", ""):
             return self.send(200, sjis(ERROR), page)
+        if "LOSTTEST" in form.get("MESSAGE", ""):
+            self.log_message("post accepted, reply cut: %r", form.get("MESSAGE"))
+            body = sjis(OK)
+            self.send_response(200)
+            self.send_header("Content-Type", page)
+            self.send_header("Content-Length", str(len(body) * 2))
+            self.end_headers()
+            self.wfile.write(body)
+            self.close_connection = True
+            return
         last = Handler.confirmed
         accepted = ("guid=ON" in self.path
                     and "MID=confirmed" in self.headers.get("Cookie", "")
@@ -113,10 +127,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--delay", type=float, default=0.0, help="seconds to wait before answering a GET")
+    parser.add_argument("--post-delay", type=float, default=0.0, help="seconds to wait before answering a POST")
     parser.add_argument("--log", help="append requests to this file")
     args = parser.parse_args()
     server = http.server.ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    server.delay, server.log = args.delay, args.log
+    server.delay, server.post_delay, server.log = args.delay, args.post_delay, args.log
     print(f"fakebbs: http://127.0.0.1:{args.port}/bbsmenu.html", flush=True)
     server.serve_forever()
 

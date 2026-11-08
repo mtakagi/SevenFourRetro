@@ -524,29 +524,26 @@ static QuickLiteDatabase* database_ = nil;
     return [attr objectForKey: NSFileModificationDate];
 }
 
-- (Ch2ThreadPostResult) postWithName: (NSString*) name
-								mail: (NSString*) mail
-								body: (NSString*) body
+- (BOOL) postWithName: (NSString*) name
+				 mail: (NSString*) mail
+				 body: (NSString*) body
+	completionHandler: (Ch2ThreadPostHandler) handler
 {
-	// NSLog(@"name = %@, mail = %@, body = %@", name, mail, body);
+	if (poster_ == nil) {
+		poster_ = [[Ch2Thread alloc] initWithNumber: number_ board: board_];
+		[poster_ setUserAgent: SEVENFOUR_USER_AGENT];
+	}
 
-	[self prepareCh2Thread];
-
-    Ch2ThreadPostResult result;
-    result = [thread_ postWithName: name
-                              mail: mail
-                              body: body];
-    
-    return result;
+	// poster_ refuses a second post while one is being sent.
+    return [poster_ postWithName: name
+                            mail: mail
+                            body: body
+               completionHandler: handler];
 }
 
 - (NSString*) alertMessage
 {
-	if (thread_) {
-		return [thread_ alertMessage];
-	} else {
-		return nil;
-	}
+	return [poster_ alertMessage];
 }
 
 #pragma mark Override
@@ -569,6 +566,7 @@ static QuickLiteDatabase* database_ = nil;
 	
 	visitedTime_ = nil;
 	cacheDeleted_ = NO;
+	poster_ = nil;
 	
 	offline_ = NO;
     
@@ -585,6 +583,7 @@ static QuickLiteDatabase* database_ = nil;
 	[self retain];
 	[thread_ setDelegate: nil];
     [thread_ release];
+    [poster_ release];
 	
     [board_ release];
     [subject_ release];
