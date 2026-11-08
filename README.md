@@ -1,6 +1,6 @@
 # SevenFourRetro
 
-SevenFour は、2005〜2006 年ごろに quux 氏が書いた Mac OS X 用の 2ch ブラウザです（Cocoa / Objective-C）。
+SevenFour は、2005〜2006 年ごろに書かれた Mac OS X 用の 2ch ブラウザです（Cocoa / Objective-C）。
 このリポジトリでは、それを **macOS 26 以降の Apple silicon (arm64) と Intel (x86_64)** で動くように保守しています。
 
 - 元の配布サイト: https://quux.s74.xrea.com/ （最終版は SevenFour 1.3、Panther 以降対応のユニバーサルバイナリ）
@@ -64,5 +64,5 @@ SevenFour 本体は、作者が著作権を放棄しています。このリポ�
 
 ## 謝辞
 
-元の SevenFour の作者 quux 氏に感謝します。
+元の SevenFour の作者に感謝します。
 3 ペインまわりのコード（`HTThreePaneSplitView`）はヘチマ氏、スキンの一部は Prototype JavaScript Framework、アイコンはゴルァのひとと SevenFour スレの名無しのみなさんによるものです（元のサイトの謝辞より）。
