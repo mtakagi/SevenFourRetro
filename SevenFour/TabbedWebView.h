@@ -1,29 +1,32 @@
 /* This file is not copyrighted and may be used freely. */
 
 #import <Cocoa/Cocoa.h>
+#import "SFTabContent.h"
 
-@class WebView;
-
+// The thread tabs: a tab bar over the views shown in the tabs (#27).
+// It manages any NSView<SFTabContent> and knows nothing of WebKit. The name
+// is kept because MainWindow.nib refers to the class (#29).
 @interface TabbedWebView : NSView {
 	NSObject* delegate_;
 	int selected_;
 	int tabWidth_;
-    
-    NSMutableArray* webViews_;
+
+    NSMutableArray* contents_;
     NSMutableArray* buttons_;
     NSMutableArray* indicators_;
 }
 
-- (WebView*) selectedWebView;
-- (WebView*) webViewAtIndex: (unsigned) index;
-- (int) indexOfWebView: (WebView*) wv;
-- (int) numberOfWebViews;
-- (NSArray*) webViews;
+- (NSView<SFTabContent>*) selectedContent;
+- (NSView<SFTabContent>*) contentAtIndex: (unsigned) index;
+- (int) indexOfContent: (NSView<SFTabContent>*) content;
+- (int) numberOfContents;
+- (NSArray*) contents;
 
-- (void) addWebView: (WebView*) wv;
-- (void) removeWebView: (WebView*) wv;
-- (void) selectWebView: (WebView*) wv;
-- (void) selectWebViewAtIndex: (int) n;
+// Adds a tab at the end and selects it.
+- (void) addContent: (NSView<SFTabContent>*) content;
+- (void) removeContent: (NSView<SFTabContent>*) content;
+- (void) selectContent: (NSView<SFTabContent>*) content;
+- (void) selectContentAtIndex: (int) n;
 
 - (void) setDelegate: (NSObject*) delegate;
 - (NSObject*) delegate;
@@ -31,6 +34,5 @@
 
 @interface NSObject(TabbedWebViewDelegate)
 - (void) tabbedWebView: (TabbedWebView*) twv
-	  didSelectWebView: (WebView*) wv;
+	  didSelectContent: (NSView<SFTabContent>*) content;
 @end
-

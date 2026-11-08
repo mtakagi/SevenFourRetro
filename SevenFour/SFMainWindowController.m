@@ -98,8 +98,7 @@ static SFMainWindowController* activeController_;
 	    
     [[wc window] makeKeyAndOrderFront: nil];
 #if 0
-    WebView* wv = [tabbedWebView selectedWebView];
-    [[self window] makeFirstResponder: wv];
+    [[self window] makeFirstResponder: [tabbedWebView selectedContent]];
     [[self window] makeKeyWindow];
     
     latestPopUpWindow_ = [wc window];
@@ -143,10 +142,10 @@ static SFMainWindowController* activeController_;
 	NSString* last = [[url path] lastPathComponent];
 	
 	if ([last isEqualTo: @"popup"]) {
-		[self popupMessage: [(SFThreadView*) [tabbedWebView selectedWebView] thread]
+		[self popupMessage: [[self selectedThreadView] thread]
 						ID: [url fragment]];
 	} else if ([last isEqualTo: @"number"]) {
-		SFThread* th = [(SFThreadView*) [tabbedWebView selectedWebView] thread];
+		SFThread* th = [[self selectedThreadView] thread];
 		int number = [[url fragment] intValue];
 
 		SFPostWindowController* wc;
@@ -161,10 +160,17 @@ static SFMainWindowController* activeController_;
 	}
 }
 
-- (void) updateDataSource: (WebDataSource*) source
+// The thread shown in the selected tab.
+- (SFThreadView*) selectedThreadView
 {
-	if (source) {
-		[urlField setStringValue: [[[source request] URL] absoluteString]];
+	return (SFThreadView*) [tabbedWebView selectedContent];
+}
+
+// Shows the URL of the selected tab's page (nil: none) and updates the title.
+- (void) updatePageURL: (NSURL*) url
+{
+	if (url) {
+		[urlField setStringValue: [url absoluteString]];
 	} else {
 		[urlField setStringValue: @""];
 	}
@@ -196,7 +202,7 @@ static SFMainWindowController* activeController_;
 	
 	if (([[url scheme] isEqualTo: @"sevenfour"] && (! [[url host] isEqualTo: @"internal"])) || 
 		[[url scheme] isEqualTo: @"applewebdata"]) {
-		SFThreadView* view = (SFThreadView*) [tabbedWebView selectedWebView];
+		SFThreadView* view = [self selectedThreadView];
 		[self popupMessage: [view thread]
 					 range: [url fragment]];
 	} else if ([[url scheme] isEqualTo: @"mailto"]) {
@@ -207,7 +213,7 @@ static SFMainWindowController* activeController_;
 		match = [pattern matchInString: label];
 		
 		if (match) {
-			SFThreadView* view = (SFThreadView*) [tabbedWebView selectedWebView];
+			SFThreadView* view = [self selectedThreadView];
 			[self popupMessage: [view thread] range: [match substringAtIndex: 1]];
 		}
 	}
@@ -272,7 +278,7 @@ static SFMainWindowController* activeController_;
 /* delete selected thread from toolbar */
 - (IBAction) deleteThreadCache: (id) sender
 {
-	SFThread* th = [(SFThreadView*)[tabbedWebView selectedWebView] thread];
+	SFThread* th = [[self selectedThreadView] thread];
 	[th removeCache];
 	
 	[threadListView reloadData];
@@ -280,9 +286,9 @@ static SFMainWindowController* activeController_;
 
 - (IBAction) closeTab: (id) sender
 {
-	if ([tabbedWebView numberOfWebViews] > 1) {
-		SFThreadView* tv = (SFThreadView*) [tabbedWebView selectedWebView];
-		[tabbedWebView removeWebView: tv];
+	if ([tabbedWebView numberOfContents] > 1) {
+		SFThreadView* tv = [self selectedThreadView];
+		[tabbedWebView removeContent: tv];
 	}
 }
 
@@ -303,18 +309,13 @@ static SFMainWindowController* activeController_;
 
 - (IBAction) searchForward: (id) sender
 {
-    [[tabbedWebView selectedWebView] searchFor: [findField stringValue]
-									 direction: YES
-								 caseSensitive: NO
-										  wrap: NO];
+    [[self selectedThreadView] findString: [findField stringValue] forward: YES];
 }
 
 - (IBAction) searchBackward: (id) sender
 {
-    [[tabbedWebView selectedWebView] searchFor: [findField stringValue]
-									 direction: YES
-								 caseSensitive: NO
-										  wrap: NO];
+    // It searched forward too until #27.
+    [[self selectedThreadView] findString: [findField stringValue] forward: NO];
 }
 
 - (IBAction) openURLOfBoard: (id) sender
@@ -333,13 +334,13 @@ static SFMainWindowController* activeController_;
 
 - (IBAction) openURLOfThread: (id) sender
 {
-	NSURL* url = [[(SFThreadView*)[tabbedWebView selectedWebView] thread] URLOfHTML];
+	NSURL* url = [[[self selectedThreadView] thread] URLOfHTML];
 	[[NSWorkspace sharedWorkspace] openURL: url];
 }
 
 - (IBAction) copyURLOfThread: (id) sender
 {
-	NSURL* url = [[(SFThreadView*)[tabbedWebView selectedWebView] thread] URLOfHTML];
+	NSURL* url = [[[self selectedThreadView] thread] URLOfHTML];
 
     NSPasteboard* pb = [NSPasteboard generalPasteboard];
     [pb declareTypes: [NSArray arrayWithObject: NSPasteboardTypeString]
@@ -369,7 +370,7 @@ static SFMainWindowController* activeController_;
 	// the first page on. Overriding it sent them to the tab view, and a
 	// tab's first page could not scroll (#44).
 
-    [tabbedWebView addWebView: view];
+    [tabbedWebView addContent: view];
     [view release];    
 }
 
@@ -426,32 +427,32 @@ static SFMainWindowController* activeController_;
 	SFThreadView* view;
     
     if (([[NSApp currentEvent] modifierFlags] & NSEventModifierFlagCommand) != 0) {
-        WebView* fg = [tabbedWebView selectedWebView];
+        NSView<SFTabContent>* fg = [tabbedWebView selectedContent];
         
         [self newTab: nil];
-        view = (SFThreadView*) [tabbedWebView selectedWebView];
+        view = [self selectedThreadView];
         
-        [tabbedWebView selectWebView: fg];
+        [tabbedWebView selectContent: fg];
     } else {
 #if 0
 		NSArray* ary;
         
 		// Search in Tabs
-		ary = [tabbedWebView webViews];
+		ary = [tabbedWebView contents];
         
         int i;
 		for (i = 0; i < [ary count]; i++) {
-			SFThreadView* tv = (SFThreadView*) [tabbedWebView webViewAtIndex: i];
+			SFThreadView* tv = (SFThreadView*) [tabbedWebView contentAtIndex: i];
 			if ([tv thread] && [th isEqualToThread: [tv thread]]) {
 				NSLog(@"Same Thread");
-				[tabbedWebView selectWebView: tv];
+				[tabbedWebView selectContent: tv];
 				[tv updateThread];
 				return;
 			}
 		}
 #endif
         
-		view = (SFThreadView*) [tabbedWebView selectedWebView];
+		view = [self selectedThreadView];
     }
     [view loadThreadWithURL: url];
     return YES;
@@ -514,7 +515,7 @@ static SFMainWindowController* activeController_;
 
 - (IBAction) updateThread: (id) sender
 {
-    SFThreadView* tv = (SFThreadView*) [tabbedWebView selectedWebView];
+    SFThreadView* tv = [self selectedThreadView];
     [tv updateThread];
     [self validateToolbarSoon: nil];
 }
@@ -535,7 +536,7 @@ static SFMainWindowController* activeController_;
 
 - (IBAction) postToThread: (id) sender
 {
-	SFThread* th = [(SFThreadView*)[tabbedWebView selectedWebView] thread];
+	SFThread* th = [[self selectedThreadView] thread];
 	
 	if (! th) {
 		return;
@@ -701,9 +702,9 @@ static SFMainWindowController* activeController_;
 {
     // NSLog(@"sender = %@", sender);    
     
-	if ([tabbedWebView numberOfWebViews] > 1) {
-		SFThreadView* tv = (SFThreadView*) [tabbedWebView selectedWebView];
-		[tabbedWebView removeWebView: tv];
+	if ([tabbedWebView numberOfContents] > 1) {
+		SFThreadView* tv = [self selectedThreadView];
+		[tabbedWebView removeContent: tv];
 		
 		return NO;
 	}
@@ -731,7 +732,7 @@ static SFMainWindowController* activeController_;
     [defaults synchronize];
 	
 	// Metadata
-	NSArray* ary = [tabbedWebView webViews];
+	NSArray* ary = [tabbedWebView contents];
 	int i;
 	for (i = 0; i < [ary count]; i++) {
 		SFThreadView* tv = (SFThreadView*) [ary objectAtIndex: i];
@@ -765,7 +766,7 @@ static SFMainWindowController* activeController_;
 {
 	NSString* s = [[self document] isOffline]? @"(Offline)" : @"";
 
-	SFThread* thread = [(SFThreadView*)[tabbedWebView selectedWebView] thread];
+	SFThread* thread = [[self selectedThreadView] thread];
 	if (thread) {
 		return [NSString stringWithFormat: @"%@ %@", [thread subject], s];
 	} else {
@@ -884,7 +885,7 @@ static SFMainWindowController* activeController_;
     if ([item action] == @selector(updateBoard:)) {
         return [[self document] isWorking];
     } else if ([item action] == @selector(updateThread:)) {
-        SFThreadView* tv = (SFThreadView*) [tabbedWebView selectedWebView];
+        SFThreadView* tv = [self selectedThreadView];
         return [tv isUpdatingThread];
     }
     return NO;
@@ -910,7 +911,7 @@ static SFMainWindowController* activeController_;
 {
     if ([item action] == @selector(postToThread:) ||
 		[item action] == @selector(updateThread:)){
-		SFThreadView* tv = (SFThreadView*) [tabbedWebView selectedWebView];
+		SFThreadView* tv = [self selectedThreadView];
 		return [tv thread] != nil;		
     } else {
 		return true;
@@ -985,8 +986,8 @@ decisionListener: (id<WebPolicyDecisionListener>) listener
 // WebView FrameLoadDelegate
 - (void) webView: (WebView*) wv didStartProvisionalLoadForFrame: (WebFrame*) frame
 {
-	if (wv == [tabbedWebView selectedWebView]) {
-		[self updateDataSource: [frame provisionalDataSource]];
+	if (wv == (WebView*) [tabbedWebView selectedContent]) {
+		[self updatePageURL: [[[frame provisionalDataSource] request] URL]];
 	}
 }
 
@@ -995,8 +996,8 @@ decisionListener: (id<WebPolicyDecisionListener>) listener
 #if 1
 	SFThread* th = [(SFThreadView*) wv thread];
 	
-	if ([tabbedWebView selectedWebView] == wv) {
-		[self updateDataSource: [frame dataSource]];
+	if ((WebView*) [tabbedWebView selectedContent] == wv) {
+		[self updatePageURL: [[[frame dataSource] request] URL]];
 		[[self window] makeFirstResponder: wv];
 	}
 
@@ -1007,9 +1008,9 @@ decisionListener: (id<WebPolicyDecisionListener>) listener
 }
 
 // TabbedWebView delegate
-- (void) tabbedWebView: (TabbedWebView*) twv didSelectWebView: (WebView*) wv
+- (void) tabbedWebView: (TabbedWebView*) twv didSelectContent: (NSView<SFTabContent>*) content
 {
-	[self updateDataSource: [[wv mainFrame] dataSource]];
+	[self updatePageURL: [(SFThreadView*) content pageURL]];
 	[self validateToolbarSoon: nil];
 }
 
