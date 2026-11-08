@@ -11,14 +11,14 @@
 #
 # Settings (NSUserDefaults: window frames, split positions, toolbar...) are
 # kept by cfprefsd under your real home whatever HOME says. So the app runs
-# as a copy with its own bundle identifier, com.xrea.s74.quux.SevenFour.test,
+# as a copy with its own bundle identifier, io.github.mtakagi.SevenFourRetro.test,
 # whose settings are deleted when it quits; yours are never touched.
 set -eu
 
 ROOT=${0:A:h:h}
 APP=${1:-$ROOT/build/Build/Products/Release/SevenFour.app}
 MENU=${2:-http://127.0.0.1:8765/bbsmenu.html}
-TEST_ID=com.xrea.s74.quux.SevenFour.test
+TEST_ID=io.github.mtakagi.SevenFourRetro.test
 
 if pgrep -x SevenFour >/dev/null; then
   echo "SevenFour is already running. Quit it first, so files and windows are not mixed up." >&2
@@ -33,7 +33,9 @@ echo "HOME for this run: $TEST_HOME"
 TEST_APP=$TEST_HOME/SevenFour.app
 cp -R "$APP" "$TEST_APP"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $TEST_ID" "$TEST_APP/Contents/Info.plist"
-codesign --force --sign - "$TEST_APP" 2>/dev/null
+# Keeps the flags (the hardened runtime, if the app was built with it, as
+# releases are) so the copy runs as the original would.
+codesign --force --sign - --preserve-metadata=entitlements,flags,runtime "$TEST_APP" 2>/dev/null
 echo "Bundle identifier for this run: $TEST_ID (e.g. osascript -e 'tell application id \"$TEST_ID\" to activate')"
 
 forget_settings() {

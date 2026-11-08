@@ -1,0 +1,168 @@
+name: Release
+
+# Pushing a tag v<version> (the MARKETING_VERSION in project.yml, e.g. v2.0)
+# builds the app, signs it with the Developer ID certificate, has Apple
+# notarize it and puts it in a draft GitHub Release (#19). Check the draft
+# and publish it by hand.
+#
+# Secrets (Settings > Secrets and variables > Actions):
+#   DEVELOPER_ID_P12           the "Developer ID Application" certificate and
+#                              its private key, exported as .p12, in base64
+#   DEVELOPER_ID_P12_PASSWORD  the password of the .p12
+#   APPLE_TEAM_ID              the team ID (10 characters)
+#   NOTARY_KEY                 an App Store Connect API key (.p8) for notarytool,
+#                              in base64
+#   NOTARY_KEY_ID              the key's ID
+#   NOTARY_ISSUER_ID           the key's issuer ID
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Signed and notarized release
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      APP: build/Build/Products/Release/SevenFour.app
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the tag against the version
+        run: |
+          VERSION=$(sed -n 's/^ *MARKETING_VERSION: "\(.*\)"$/\1/p' project.yml)
+          if [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "::error::The tag $GITHUB_REF_NAME doesn't match MARKETING_VERSION $VERSION in project.yml"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Check the secrets
+        env:
+          DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          missing=0
+          for name in DEVELOPER_ID_P12 DEVELOPER_ID_P12_PASSWORD APPLE_TEAM_ID NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::The secret $name is not set"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Run tests
+        run: |
+          set -o pipefail
+          xcodebuild -project SevenFour.xcodeproj -scheme SevenFour \
+            -destination 'platform=macOS' -derivedDataPath build test
+
+      # A keychain of this run only, holding the Developer ID certificate.
+      - name: Import the certificate
+        env:
+          DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/release.keychain-db"
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          echo "$DEVELOPER_ID_P12" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$KEYCHAIN" \
+            -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/developer-id.p12"
+          echo "KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      # The project signs ad hoc for local builds; the release overrides it
+      # with the Developer ID, the hardened runtime and a secure timestamp,
+      # which notarization requires.
+      - name: Build (arm64 + x86_64), signed
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -o pipefail
+          xcodebuild -project SevenFour.xcodeproj -scheme SevenFour \
+            -configuration Release -destination 'generic/platform=macOS' \
+            -derivedDataPath build clean build \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            ENABLE_HARDENED_RUNTIME=YES \
+            OTHER_CODE_SIGN_FLAGS="--timestamp --keychain $KEYCHAIN"
+
+      - name: Check the app
+        run: |
+          ARCHS=$(lipo -archs "$APP/Contents/MacOS/SevenFour")
+          echo "Architectures: $ARCHS"
+          for arch in arm64 x86_64; do
+            case " $ARCHS " in
+              *" $arch "*) ;;
+              *) echo "::error::$arch is missing from the app binary"; exit 1 ;;
+            esac
+          done
+          codesign --verify --strict --verbose=2 "$APP"
+          codesign --display --verbose=2 "$APP" 2>&1 | grep -E "Authority|TeamIdentifier|Runtime|Timestamp"
+
+      - name: Notarize
+        env:
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          echo "$NOTARY_KEY" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" \
+            --wait --timeout 30m --output-format json | tee "$RUNNER_TEMP/notary.json"
+          STATUS=$(plutil -extract status raw "$RUNNER_TEMP/notary.json")
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "::error::Notarization ended with $STATUS"
+            # Apple's log says what was rejected.
+            xcrun notarytool log "$(plutil -extract id raw "$RUNNER_TEMP/notary.json")" \
+              --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" || true
+            rm "$RUNNER_TEMP/notary.p8"
+            exit 1
+          fi
+          rm "$RUNNER_TEMP/notary.p8"
+          # The ticket goes in the app, so it opens offline too.
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          spctl --assess --type execute --verbose=2 "$APP"
+
+      - name: Archive app
+        run: ditto -c -k --keepParent "$APP" "SevenFour-$VERSION.zip"
+
+      - name: Create a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "SevenFour-$VERSION.zip" \
+            --draft --title "SevenFour $VERSION" --generate-notes
+
+      - name: Remove the keychain
+        if: always()
+        run: |
+          if [ -n "$KEYCHAIN" ]; then
+            security delete-keychain "$KEYCHAIN" || true
+          fi
