@@ -338,9 +338,12 @@ NSString* SFTabContentDidChangeNotification = @"SFTabContentDidChangeNotificatio
     [super dealloc];
 }
 
+// The tab bar handles no keys: the selected content takes the focus (it is
+// made first responder when selected). Accepting it left an invisible stop
+// in the key view loop (#46).
 - (BOOL) acceptsFirstResponder
 {
-	return YES;
+	return NO;
 }
 
 - (void) drawRect: (NSRect) allRect

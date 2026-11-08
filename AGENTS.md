@@ -142,6 +142,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - 本文の URL やページ内検索も、`SFThreadView` のメソッド（`-pageURL`、`-findString:forward:`）を通します。`SFMainWindowController` からは `-selectedThreadView` で選択中の本文を取ります。
   - WKWebView への移行で置き換えた機能と確認の手順は `docs/wkwebview-migration.md` にあります。
   - 本文の WebView のレスポンダーチェーンは差し替えないでください（#44。最初のページがスクロールしなくなります）。
+  - **キーボードフォーカス**（#46）: スレを開く（読み込みが終わる）と、前面のタブの本文がファーストレスポンダーになり、`SFThreadView` がフォーカスリングを描きます（`WKWebView` は描かないため）。背面に開くときはフォーカスを動かしません。タブバー（`TabbedWebView`）はファーストレスポンダーにならないでください（Tab キーの途中に見えない場所ができます）。スレッド一覧で編集できる列は評価（`rate`）だけです（ほかの列が編集できると、Tab キーでセルの編集が始まります）。
 - **スレッドとメインスレッド**（#9）: `SFThread` / `Ch2Thread` の更新・通知と WebView の操作はメインスレッドで行います。`SFThreadSchemeHandler` はメインスレッドで動きます。
 - **通信（NSURLSession）**（#24、#25、#26）: 板一覧（`Ch2BoardTree`）・スレッド一覧（`Ch2Board`）・画像（`SFImageWindowController`）・DAT（`Ch2Thread -update`）・書き込み（`Ch2Thread -postWithName:mail:body:completionHandler:`）は、すべて `NSURLSession` で非同期に通信します。`NSURLConnection` と同期通信は使わないでください。
   - 結果はメインスレッドで扱います（デリゲートのキューに `[NSOperationQueue mainQueue]` を指定するか、完了ハンドラから `dispatch_async(dispatch_get_main_queue(), ...)`）。

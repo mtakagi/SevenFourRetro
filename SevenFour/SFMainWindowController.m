@@ -418,11 +418,20 @@ static SFMainWindowController* activeController_;
     
     if (background) {
         NSView<SFTabContent>* fg = [tabbedWebView selectedContent];
-        
+        // Selecting a tab focuses its content; opening behind leaves the
+        // focus where it was, e.g. in the list (#46).
+        NSResponder* focus = [[self window] firstResponder];
+        if ([focus isKindOfClass: [NSTextView class]] && [(NSTextView*) focus isFieldEditor]) {
+            focus = (NSResponder*) [(NSTextView*) focus delegate];   // the field being edited
+        }
+        [focus retain];
+
         [self newTab: nil];
         view = [self selectedThreadView];
-        
+
         [tabbedWebView selectContent: fg];
+        [[self window] makeFirstResponder: focus];
+        [focus release];
     } else {
 #if 0
 		NSArray* ary;
@@ -612,7 +621,14 @@ static SFMainWindowController* activeController_;
     NSTableColumn* column;
     WhiteFormatter* formatter;
 
-    column = [columns objectAtIndex: [threadListView columnWithIdentifier: @"rate"]];	
+    // The nib leaves the DAT number and the creation date editable, so Tab
+    // in the list started editing them (#46). Only the rating is set by
+    // the user.
+    for (NSString* identifier in [NSArray arrayWithObjects: @"number", @"creationDate", nil]) {
+        [[columns objectAtIndex: [threadListView columnWithIdentifier: identifier]] setEditable: NO];
+    }
+
+    column = [columns objectAtIndex: [threadListView columnWithIdentifier: @"rate"]];
 	[column setDataCell: [[RatingCell alloc] init]];
 	
     column = [columns objectAtIndex: [threadListView columnWithIdentifier: @"state"]];	
