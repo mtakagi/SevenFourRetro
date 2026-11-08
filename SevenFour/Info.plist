@@ -39,8 +39,6 @@
 	</array>
 	<key>CFBundleExecutable</key>
 	<string>SevenFour</string>
-	<key>CFBundleIconFile</key>
-	<string>74</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.xrea.s74.quux.SevenFour</string>
 	<key>CFBundleInfoDictionaryVersion</key>

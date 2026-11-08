@@ -174,7 +174,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - 処理中にアニメーションさせる項目（板更新・スレ更新）は、`Toolbar.plist` で `animates` を `true` にします（#15）。その項目は `SFSymbolToolbarItem`（`NSImageView` を持つボタン）で作られ、`-isToolbarItemBusy:` が YES の間、シンボルを回転させます。シンボルエフェクトには `Symbols.framework` が必要です（`project.yml` でリンク済み）。
   - 処理が終わったら `-validateToolbarSoon:` を呼んでツールバーを再検証すると、アニメーションが止まります。
   - セルやボタンに色付きで描くときは `NSImage+SFSymbols.h` の `+sf_imageWithSymbolName:pointSize:color:size:` を使います（テンプレート画像にならないので色がそのまま出ます。動的カラーはダークモードに追従します）。
-  - 例外: タブの背景（`tab.png`）とアプリアイコン（`74.icns`）はアイコンではないので画像のままです。
+  - 例外: タブの背景（`tab.png`）はアイコンではないので画像のままです。アプリのアイコンは Icon Composer の `SevenFour/74.icon` で、`project.yml` の `ASSETCATALOG_COMPILER_APPICON_NAME` で指定しています（#58。数字は Noto Sans をアウトライン化したもの）。
 - **Shift_JIS の読み込み**（#31）: 掲示板から受け取ったデータ（板一覧・subject.txt・DAT・bbs.cgi の応答）は `Ch2StringFromShiftJIS()`（`Ch2ShiftJIS.h`）で文字列にしてください。Windows と同じ CP932 として読み、壊れたバイトは U+FFFD に、末尾で切れた文字は捨てます。`-[NSString initWithData:encoding:]` は 1 バイトでも壊れていると全体が nil になるので使わないでください。旧 Text Encoding Converter（`TEC.m`）は削除しました。
 - ソースのエンコーディングは UTF-8 です。
 - **通信は HTTPS 前提です。** 現行 SDK では App Transport Security (ATS) が有効なため、平文 HTTP の通信はブロックされます。ATS の例外は設定していません。

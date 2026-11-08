@@ -53,6 +53,9 @@ targets:
         PRODUCT_NAME: SevenFour
         PRODUCT_BUNDLE_IDENTIFIER: com.xrea.s74.quux.SevenFour
         INFOPLIST_FILE: SevenFour/Info.plist
+        # The app icon, made with Icon Composer (SevenFour/74.icon, #58).
+        # actool adds CFBundleIconFile / CFBundleIconName to the Info.plist.
+        ASSETCATALOG_COMPILER_APPICON_NAME: "74"
         GENERATE_INFOPLIST_FILE: NO
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"

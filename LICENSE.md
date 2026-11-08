@@ -23,7 +23,8 @@ This repository's changes and additions are likewise not copyrighted and may be 
 | 部品 | 場所 | 作者・条件 |
 | --- | --- | --- |
 | Prototype JavaScript Framework 1.4.0 | `SevenFour/Skin/prototype.js` | (c) 2005 Sam Stephenson。MIT 形式のライセンス（ファイルの先頭と、アプリの Credits を参照）。 |
-| アプリのアイコン | `SevenFour/74.icns` | ゴルァのひとと、SevenFour スレの名無しのみなさん（元のサイトの謝辞より）。条件は明記されていないので、新しいアイコンに変えます（#58）。 |
+
+アプリのアイコン（`SevenFour/74.icon`）は、このリポジトリで Icon Composer を使って新しく作ったものです（#58）。数字「74」は Noto Sans（Copyright 2022 The Noto Project Authors、SIL Open Font License 1.1）の字形をアウトライン化した図形で、フォントのファイルは含んでいません（OFL の FAQ 1.1・1.1.1 のとおり、フォントで作ったグラフィックに OFL はかかりません）。元の版のアイコン（`74.icns`。ゴルァのひとと SevenFour スレの名無しのみなさん作）は、利用の条件が明記されていなかったので置き換えました。
 
 元の SevenFour の 3 ペインの分割ビュー（`HTThreePaneSplitView`、ヘチマ氏作）は、再配布の条件が明記されていなかったので、このリポジトリで書き直した `SFThreePaneView`（`NSSplitView` を使う別の実装）に置き換えました（#57）。
 
