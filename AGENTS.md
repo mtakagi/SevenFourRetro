@@ -97,6 +97,7 @@ Secrets（リポジトリの Settings → Secrets and variables → Actions）:
 | `NOTARY_ISSUER_ID` | API キーの Issuer ID |
 
 - 公証には Hardened Runtime が必要です。WKWebView（Web コンテンツは別プロセス）や通信を含め、追加の entitlements なしで動くことを確認しています。新しく entitlements が必要な機能を足すときは、Hardened Runtime を有効にして試してください（`xcodebuild ... ENABLE_HARDENED_RUNTIME=YES` でビルドし、`Tools/run-app-with-test-home.sh` で起動する。スクリプトは署名し直すときに Hardened Runtime のフラグを残します）。
+- Xcode は `build` で作ったアプリに、デバッグ用の entitlement `com.apple.security.get-task-allow` を付けます。公証はこれを拒否する（`The executable requests the com.apple.security.get-task-allow entitlement.`）ので、リリースのビルドでは `CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO` を指定し、付いていないことを確かめてから公証します。
 - 秘密鍵や証明書をリポジトリに入れないでください。
 
 ## テスト

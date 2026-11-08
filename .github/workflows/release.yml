@@ -96,7 +96,9 @@ jobs:
 
       # The project signs ad hoc for local builds; the release overrides it
       # with the Developer ID, the hardened runtime and a secure timestamp,
-      # which notarization requires.
+      # which notarization requires. Xcode also gives a built (not archived)
+      # app the get-task-allow entitlement, for debugging, which notarization
+      # rejects; CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO leaves it out.
       - name: Build (arm64 + x86_64), signed
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -109,6 +111,7 @@ jobs:
             CODE_SIGN_IDENTITY="Developer ID Application" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             ENABLE_HARDENED_RUNTIME=YES \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
             OTHER_CODE_SIGN_FLAGS="--timestamp --keychain $KEYCHAIN"
 
       - name: Check the app
@@ -123,6 +126,13 @@ jobs:
           done
           codesign --verify --strict --verbose=2 "$APP"
           codesign --display --verbose=2 "$APP" 2>&1 | grep -E "Authority|TeamIdentifier|Runtime|Timestamp"
+          # Notarization rejects the debugging entitlement.
+          ENTITLEMENTS=$(codesign --display --entitlements - --xml "$APP" 2>/dev/null || true)
+          echo "Entitlements: ${ENTITLEMENTS:-none}"
+          if echo "$ENTITLEMENTS" | grep -q "get-task-allow"; then
+            echo "::error::The app has the get-task-allow entitlement, which notarization rejects"
+            exit 1
+          fi
 
       - name: Notarize
         env:
