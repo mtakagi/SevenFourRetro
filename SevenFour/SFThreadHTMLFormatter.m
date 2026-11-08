@@ -35,17 +35,19 @@ static OGRegularExpression* NUMBER_REPLY_PATTERN = nil;
 
 	NSURL* url;
     
+	// The encoding is guessed, as -initWithContentsOfURL: did, so user skins
+	// in other encodings still load.
 	url = [NSURL URLWithString: @"sevenfour://skin/Header.html"];
-    HEADER_TMPL = [[NSString alloc] initWithContentsOfURL: url];
+    HEADER_TMPL = [[NSString alloc] initWithContentsOfURL: url usedEncoding: NULL error: NULL];
 	
 	url = [NSURL URLWithString: @"sevenfour://skin/Title.html"];
-    TITLE_TMPL = [[NSString alloc] initWithContentsOfURL: url];
+    TITLE_TMPL = [[NSString alloc] initWithContentsOfURL: url usedEncoding: NULL error: NULL];
 	
 	url = [NSURL URLWithString: @"sevenfour://skin/NewRes.html"];
-    NEW_RES_TMPL = [[NSString alloc] initWithContentsOfURL: url];
+    NEW_RES_TMPL = [[NSString alloc] initWithContentsOfURL: url usedEncoding: NULL error: NULL];
 	
 	url = [NSURL URLWithString: @"sevenfour://skin/Res.html"];
-    RES_TMPL = [[NSString alloc] initWithContentsOfURL: url];
+    RES_TMPL = [[NSString alloc] initWithContentsOfURL: url usedEncoding: NULL error: NULL];
 	
 	FOOTER_TMPL = @"</body></html>";
 }
@@ -218,7 +220,7 @@ static OGRegularExpression* NUMBER_REPLY_PATTERN = nil;
     if ([defaults boolForKey: @"ThreadShowAll"]) {
         count = [thread_ count];
     } else {
-        int min = [defaults integerForKey: @"ThreadShowMin"];
+        int min = (int) [defaults integerForKey: @"ThreadShowMin"];
         
         if ([thread_ count] > min) {
             if ([thread_ newCount] > min) {

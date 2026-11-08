@@ -65,8 +65,16 @@ targets:
         CLANG_ENABLE_OBJC_ARC: NO
         CLANG_ENABLE_MODULES: NO
         GCC_C_LANGUAGE_STANDARD: gnu99
-        ENABLE_STRICT_OBJC_MSGSEND: NO
-        GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS: NO
+        # objc_msgSend must be cast to the method's type before calling it,
+        # and deprecated APIs are warned about (#32).
+        ENABLE_STRICT_OBJC_MSGSEND: YES
+        GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS: YES
+        # The legacy WebView (WebKit 1) is deprecated as a whole; replacing it
+        # is #27/#28. This WebKit switch silences only its deprecations, so
+        # those of every other API still show up. Remove it with WebKit 1.
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "$(inherited)"
+          - DISABLE_LEGACY_WEBKIT_DEPRECATIONS=1
         # Ad-hoc signing so the app runs locally on Apple silicon
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
@@ -118,8 +126,8 @@ targets:
         CLANG_ENABLE_OBJC_ARC: NO
         CLANG_ENABLE_MODULES: NO
         GCC_C_LANGUAGE_STANDARD: gnu99
-        ENABLE_STRICT_OBJC_MSGSEND: NO
-        GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS: NO
+        ENABLE_STRICT_OBJC_MSGSEND: YES
+        GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS: YES
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""

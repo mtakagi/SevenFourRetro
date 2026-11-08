@@ -46,7 +46,7 @@ static NSError* Ch2BoardTreeError(NSString* description)
     
     regex = [OGRegularExpression regularExpressionWithString:@"^<BR><BR><B>(.+?)</B><BR>"
                                                     options: OgreIgnoreCaseOption];
-    if (match = [regex matchInString: line]) {
+    if ((match = [regex matchInString: line])) {
         [result setObject: [match substringAtIndex: 1] 
                    forKey: @"title"];
         [result setObject: [NSMutableArray array]
@@ -57,7 +57,7 @@ static NSError* Ch2BoardTreeError(NSString* description)
 
     regex = [OGRegularExpression regularExpressionWithString:@"^<A HREF=(.+?)>(.+?)</A>"
                                                     options: OgreIgnoreCaseOption];
-    if (match = [regex matchInString: line]) {
+    if ((match = [regex matchInString: line])) {
         [result setObject: [match substringAtIndex: 1] 
                    forKey: @"url"];
         [result setObject: [match substringAtIndex: 2] 

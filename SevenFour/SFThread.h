@@ -16,7 +16,7 @@ extern NSString* SFThreadDidFinishUpdatingNotification;
     
     int local_, rate_;
     NSString* comment_;
-	NSCalendarDate* visitedTime_;
+	NSDate* visitedTime_;
 	BOOL isNew_;
 	BOOL cacheDeleted_;
     
@@ -80,7 +80,6 @@ extern NSString* SFThreadDidFinishUpdatingNotification;
 
 - (void) setOffline: (BOOL) flag;
 - (BOOL) offline;
-- (int) countOfID: (NSString*) s;
 
 + (QuickLiteDatabase*) sharedDatabase;
 

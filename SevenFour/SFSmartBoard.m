@@ -29,7 +29,9 @@
 
 - (void) update
 {
-	if ([threads_ count] == 0 || 1) {
+	// Always runs the query again (an "else" that updated each thread
+	// instead was never reached, and is removed).
+	{
 		QuickLiteDatabase* db = [SFThread sharedDatabase];    
 		QuickLiteCursor* cursor = [db performQuery: query_];
 		
@@ -54,12 +56,6 @@
         postNotificationName: SFBoardDidFinishUpdatingNotification
                       object: self
                     userInfo: nil];
-	} else {
-		int i;
-		for (i = 0; i < [threads_ count]; i++) {
-			SFThread* th = [threads_ objectAtIndex: i];
-			[th update];
-		}
 	}
 }
 

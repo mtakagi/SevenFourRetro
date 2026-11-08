@@ -263,6 +263,19 @@ typedef enum {
     XCTAssertEqualObjects([Ch2Thread URLOfDatWithBoard: board number: number], [thread URLOfDat]);
 }
 
+- (void) testIfModifiedSinceIsTheCacheDateInRFC1123
+{
+    Ch2Thread* thread = [self threadWithCachedDat];
+    // 2026-11-08 00:00:00 GMT
+    NSDate* date = [NSDate dateWithTimeIntervalSince1970: 1794096000];
+    [[NSFileManager defaultManager] setAttributes: [NSDictionary dictionaryWithObject: date forKey: NSFileModificationDate]
+                                     ofItemAtPath: [self cachePath]
+                                            error: NULL];
+    XCTAssertTrue([self update: thread]);
+    XCTAssertEqualObjects([[[server_ requests] lastObject] header: @"If-Modified-Since"],
+                          @"Sun, 08 Nov 2026 00:00:00 GMT");
+}
+
 - (void) testFetchesNewThreadAndWritesCache
 {
     SFTestThreadCache* cache = [[[SFTestThreadCache alloc] initWithPath:

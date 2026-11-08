@@ -50,7 +50,7 @@ NSString* Ch2BoardDidFinishParsingNotification = @"Ch2BoardDidFinishParsingNotif
 
 - (unsigned) count
 {
-    return [subjects_ count];
+    return (unsigned) [subjects_ count];
 }
 
 - (float) estimatedProgress

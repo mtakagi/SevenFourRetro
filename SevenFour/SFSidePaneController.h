@@ -2,7 +2,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-@interface SFSidePaneController : NSObject
+@interface SFSidePaneController : NSObject <NSOutlineViewDataSource, NSOutlineViewDelegate>
 {
     IBOutlet NSView* baseView;
     IBOutlet NSOutlineView* outlineView;

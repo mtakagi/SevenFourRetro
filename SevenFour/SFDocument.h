@@ -5,7 +5,7 @@
 @class QuickLiteDatabase;
 @class SFBoard;
 @class SFThread;
-@class SFWindowController;
+@class SFMainWindowController;
 
 // Posted on the main thread after the shared board tree was replaced with a
 // newly downloaded board list.
@@ -20,7 +20,7 @@ extern NSString* SFBoardTreeDidChangeNotification;
 	
 	NSURL* URLOfThread_;
 	
-	SFWindowController* windowController_;
+	SFMainWindowController* windowController_;
 }
 
 - (BOOL) isWorking;

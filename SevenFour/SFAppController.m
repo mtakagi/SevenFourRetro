@@ -46,9 +46,12 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
 		
 		BOOL isDir;
 		if ([manager fileExistsAtPath: path1 isDirectory: &isDir] && isDir) {
-			[manager createDirectoryAtPath: path2 attributes: nil];
+			[manager createDirectoryAtPath: path2
+			   withIntermediateDirectories: NO
+								attributes: nil
+									 error: NULL];
 		} else {
-			[manager copyPath: path1 toPath: path2 handler: nil];        
+			[manager copyItemAtPath: path1 toPath: path2 error: NULL];
 		}
     }
 }
@@ -195,25 +198,20 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
 				  relativeToURL: board];
 }
 
-- (void) alertSheetDidEnd: (NSAlert*) alert
-			   returnCode: (int) returnCode
-			  contextInfo: (void*) contextInfo
-{
-	;
-}
-
 - (void) board: (Ch2Board*) board didFailWithError: (NSError*) err
 {
-	NSAlert* alert = [[NSAlert alloc] init];
+	NSAlert* alert = [[[NSAlert alloc] init] autorelease];
 	
 	[alert setMessageText: [err localizedDescription]];
 	
 	[alert addButtonWithTitle: @"OK"];
 	
-	[alert beginSheetModalForWindow: [NSApp mainWindow]
-					  modalDelegate: self
-					 didEndSelector: @selector(alertSheetDidEnd: returnCode: contextInfo:)
-						contextInfo: nil];
+	NSWindow* window = [NSApp mainWindow];
+	if (window) {
+		[alert beginSheetModalForWindow: window completionHandler: nil];
+	} else {
+		[alert runModal];
+	}
 }
 
 
@@ -255,7 +253,7 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
 {
 	DEBUG_LOG(@"SFAC %p - application:openFile:", self);
 	
-	SFMainWindowController* controller = [[app mainWindow] delegate];
+	SFMainWindowController* controller = (SFMainWindowController*) [[app mainWindow] delegate];
 	[controller newTab: nil];
 	[controller openURL: [SFAppController URLFromCachePath: path]];
 	

@@ -11,8 +11,11 @@
 @class SFThread;
 @class SFThreadFactory;
 
-@interface SFMainWindowController : NSWindowController {
+@interface SFMainWindowController : NSWindowController <NSWindowDelegate, NSToolbarDelegate, NSToolbarItemValidation, NSTableViewDataSource, WebPolicyDelegate, WebUIDelegate, WebFrameLoadDelegate> {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"   // NSDrawer: #29
     IBOutlet NSDrawer* drawer;
+#pragma clang diagnostic pop
 	
     IBOutlet SearchableArrayController* threadsController;
     IBOutlet NSTableView* threadListView;

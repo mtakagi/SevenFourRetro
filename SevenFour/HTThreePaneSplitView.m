@@ -53,7 +53,7 @@
 			secondBorder=YES;//(topBorder || bottomBorder);
 		}
         
-        [[NSColor controlShadowColor] set];
+        [[NSColor separatorColor] set];
         NSRect frame = [sideView frame];
         frame.origin.x = -1;
         frame.origin.y = -1;
@@ -192,7 +192,7 @@
 
 	}else if(_trackingMode==kMainSpliterTracking){
 		if(dy<0){
-			dy=abs(dy);
+			dy=fabs(dy);
 			if(bottomViewFrame.size.height-dy<=0){
 				dy=bottomViewFrame.size.height;
 				_trackingStartPoint.y-=dy;
@@ -504,7 +504,8 @@
 {
 	if(_layoutInfo != pref){
 		[_layoutInfo autorelease];
-		_layoutInfo=[pref retain];
+		// A copy: the layout is changed in place (setObject:forKey:).
+		_layoutInfo=[pref mutableCopy];
 	}
 }
 
@@ -799,11 +800,11 @@
 		}
 		//_sideSpliterRect
 		if ([[_layoutInfo objectForKey:@"sideViewAlternativeStyle"] boolValue]) {
-			sideFrame.origin.y = [NSScroller scrollerWidth];
+			sideFrame.origin.y = [NSScroller scrollerWidthForControlSize: NSControlSizeRegular scrollerStyle: NSScrollerStyleLegacy];
 			sideFrame.size.height -= sideFrame.origin.y;
 
-			_sideSpliterRect.size.width  = [NSScroller scrollerWidth];
-			_sideSpliterRect.size.height = [NSScroller scrollerWidth];
+			_sideSpliterRect.size.width  = [NSScroller scrollerWidthForControlSize: NSControlSizeRegular scrollerStyle: NSScrollerStyleLegacy];
+			_sideSpliterRect.size.height = [NSScroller scrollerWidthForControlSize: NSControlSizeRegular scrollerStyle: NSScrollerStyleLegacy];
 			_sideSpliterRect.origin.x = sideFrame.size.width - _sideSpliterRect.size.width;
 			_sideSpliterRect.origin.y = 0;
 		} else {
@@ -976,7 +977,7 @@
 	
 	NSPoint dimplePoint=cellFrame.origin;
 	NSImage* image=nil;
-	NSCompositingOperation dimpleOp=NSCompositeCopy;
+	NSCompositingOperation dimpleOp=NSCompositingOperationCopy;
 	
 #if 0
 	if(([[self window]styleMask] & NSTexturedBackgroundWindowMask) == 0){
@@ -1045,7 +1046,12 @@
 		image=[HTThreePaneSplitView dimpleImage];
 		dimplePoint.y+=(cellFrame.size.height-4)/2;
 		dimplePoint.x+=(cellFrame.size.width-4)/2;
-		[image compositeToPoint:dimplePoint operation:dimpleOp];
+		// As compositeToPoint: drew it: upright, with dimplePoint at its
+		// lower-left corner on screen (above it in this flipped view).
+		NSSize size=[image size];
+		NSRect dimpleRect=NSMakeRect(dimplePoint.x, dimplePoint.y, size.width, size.height);
+		if([self isFlipped]) dimpleRect.origin.y-=size.height;
+		[image drawInRect:dimpleRect fromRect:NSZeroRect operation:dimpleOp fraction:1.0 respectFlipped:YES hints:nil];
 	}
 
 }

@@ -211,7 +211,7 @@ static NSMutableSet* mails_ = NULL;
 	}
 }
 
-- (int) numberOfItemsInComboBox: (NSComboBox*) box
+- (NSInteger) numberOfItemsInComboBox: (NSComboBox*) box
 {
     if (box == nameBox) {
         return [names_ count];
@@ -222,7 +222,7 @@ static NSMutableSet* mails_ = NULL;
 	}
 }
 
-- (id) comboBox: (NSComboBox*) box objectValueForItemAtIndex: (int) index
+- (id) comboBox: (NSComboBox*) box objectValueForItemAtIndex: (NSInteger) index
 {
     if (box == nameBox) { 
         return [[names_ allObjects] objectAtIndex: index];

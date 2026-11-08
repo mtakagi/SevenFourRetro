@@ -325,7 +325,7 @@ static Ch2BoardTree* updatingBoardTree_ = nil;
 {
 	DEBUG_LOG(@"SFDocument %p - makeWindowControllers", self);
 	
-    NSWindowController* wc;
+    SFMainWindowController* wc;
     wc = [[SFMainWindowController alloc] init];
 
     [self addWindowController: wc];
@@ -334,7 +334,8 @@ static Ch2BoardTree* updatingBoardTree_ = nil;
 	windowController_ = [wc retain];
 }
 
-- (NSData*) dataRepresentationOfType: (NSString*) type
+// Nothing is saved: a document is a window on the boards.
+- (NSData*) dataOfType: (NSString*) type error: (NSError**) error
 {
     return nil;
 }
