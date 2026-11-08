@@ -7,6 +7,9 @@
 #import "SFThreadHTMLFormatter.h"
 #import <OgreKit/OgreKit.h>
 
+// How far inside the view the focus ring's mask is (points).
+static const CGFloat FOCUS_RING_INSET = 3;
+
 @implementation SFThreadView
 
 #pragma mark SFTabContent
@@ -230,6 +233,21 @@
 	[[NSNotificationCenter defaultCenter] removeObserver: self];
 	[thread_ release];
     [super dealloc];
+}
+
+#pragma mark Focus ring
+
+// Shows that the keys go to the thread (#46): WKWebView draws no focus ring,
+// and the lists only turn gray. The ring is drawn just inside the view,
+// which fills the tabs and would clip a ring drawn outside it.
+- (NSRect) focusRingMaskBounds
+{
+    return [self bounds];
+}
+
+- (void) drawFocusRingMask
+{
+    NSRectFill(NSInsetRect([self bounds], FOCUS_RING_INSET, FOCUS_RING_INSET));
 }
 
 @end
