@@ -16,46 +16,18 @@
 		   thread: (SFThread**) thread
 			range: (NSString**) range
 {
-	*thread = nil;
 	*range = nil;
 	
-	SFThreadFactory* factory = [SFThreadFactory sharedFactory];
+	// The board keeps the host and port of the URL (#37).
+	*thread = [[SFThreadFactory sharedFactory] threadWithURL: url];
 	
 	NSArray* ary = [[url path] pathComponents];
 	DEBUG_LOG(@"ary = %@", ary);
-	if ([ary count] >= 5 &&
+	if (*thread && [ary count] > 5 &&
 		[[ary objectAtIndex: 1] isEqualTo: @"test"] &&
 		[[ary objectAtIndex: 2] isEqualTo: @"read.cgi"]) {
-		/*
-		 0:
-		 1: test
-		 2: read.cgi
-		 3: BOARD
-		 4: NUMBER
-		 5: RANGE
-		 */
-		NSURL* board = [NSURL URLWithString: 
-			[NSString stringWithFormat: @"https://%@/%@", [url host], [ary objectAtIndex: 3]]];
-		
-		*thread = [factory threadWithBoard: board
-									number: [[ary objectAtIndex: 4] intValue]];		
-		
-		if ([ary count] > 5) {
-			*range = [[ary objectAtIndex: 5] retain];
-		}
-	} else if ([ary count] == 4 &&
-			   [[ary objectAtIndex: 2] isEqualTo: @"dat"]) {
-		/*
-		 0:
-		 1: BOARD
-		 2: dat
-		 3: NUMBER.dat
-		 */
-		NSURL* board = [NSURL URLWithString: 
-			[NSString stringWithFormat: @"https://%@/%@", [url host], [ary objectAtIndex: 1]]];
-		NSString* last = [ary objectAtIndex: 3];
-		*thread = [factory threadWithBoard: board
-									number: [[last substringToIndex: [last length] - 4] intValue]];
+		// 0: /, 1: test, 2: read.cgi, 3: BOARD, 4: NUMBER, 5: RANGE
+		*range = [[ary objectAtIndex: 5] retain];
 	}
 }
 

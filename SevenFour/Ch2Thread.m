@@ -410,13 +410,19 @@ static NSString* hostAndPort(NSURL* url)
     return [url port] ? [NSString stringWithFormat: @"%@:%@", [url host], [url port]] : [url host];
 }
 
-- (NSURL*) URLOfHTML
++ (NSURL*) URLOfHTMLWithBoard: (NSURL*) board
+                       number: (int) number
 {
     NSString* s = [NSString stringWithFormat:
                       @"%@://%@/test/read.cgi%@/%d/",
-                      SFSchemeOfURL(board_), hostAndPort(board_), [board_ path], number_]; 
+                      SFSchemeOfURL(board), hostAndPort(board), [board path], number]; 
     
     return [NSURL URLWithString: s];
+}
+
+- (NSURL*) URLOfHTML
+{
+    return [Ch2Thread URLOfHTMLWithBoard: board_ number: number_];
 }
 
 + (NSURL*) URLOfDatWithBoard: (NSURL*) board
@@ -427,6 +433,39 @@ static NSString* hostAndPort(NSURL* url)
         SFSchemeOfURL(board), hostAndPort(board), [board path], number]; 
     
     return [NSURL URLWithString: s];
+}
+
++ (NSURL*) boardOfThreadURL: (NSURL*) url
+                     number: (int*) number
+{
+    NSArray* ary = [[url path] pathComponents];
+    NSString* board;
+    NSString* thread;
+    
+    if ([ary count] >= 5 &&
+        [[ary objectAtIndex: 1] isEqualToString: @"test"] &&
+        [[ary objectAtIndex: 2] isEqualToString: @"read.cgi"]) {
+        // 0: /, 1: test, 2: read.cgi, 3: BOARD, 4: NUMBER, 5: RANGE
+        board = [ary objectAtIndex: 3];
+        thread = [ary objectAtIndex: 4];
+    } else if ([ary count] == 4 &&
+               [[ary objectAtIndex: 2] isEqualToString: @"dat"] &&
+               [[ary objectAtIndex: 3] hasSuffix: @".dat"]) {
+        // 0: /, 1: BOARD, 2: dat, 3: NUMBER.dat
+        board = [ary objectAtIndex: 1];
+        thread = [[ary objectAtIndex: 3] stringByDeletingPathExtension];
+    } else {
+        return nil;
+    }
+    
+    if ([url host] == nil || [thread intValue] <= 0) {
+        return nil;
+    }
+    if (number) {
+        *number = [thread intValue];
+    }
+    return [NSURL URLWithString: [NSString stringWithFormat: @"%@://%@/%@",
+                                     SFSchemeOfURL(url), hostAndPort(url), board]];
 }
 
 + (void) forgetConfirmationFormData

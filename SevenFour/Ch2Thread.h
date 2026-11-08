@@ -65,8 +65,19 @@ extern NSString* Ch2ThreadConnectionDidFailNotification;
 - (NSURL*) URLOfHTML;
 - (NSURL*) URLOfDat;
 
+// The read.cgi and DAT URLs of a thread. Both keep the board's port.
++ (NSURL*) URLOfHTMLWithBoard: (NSURL*) board
+                       number: (int) number;
 + (NSURL*) URLOfDatWithBoard: (NSURL*) board
                       number: (int) number;
+
+// The board of a thread URL, keeping its host and port, and the thread
+// number in *number:
+//   <scheme>://host[:port]/test/read.cgi/BOARD/NUMBER[/RANGE]
+//   <scheme>://host[:port]/BOARD/dat/NUMBER.dat
+// The board's scheme is SFSchemeOfURL(url). Returns nil for other URLs.
++ (NSURL*) boardOfThreadURL: (NSURL*) url
+                     number: (int*) number;
 
 - (NSDictionary*) messageAtIndex: (int) no;
 
