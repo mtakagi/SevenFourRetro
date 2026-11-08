@@ -32,7 +32,7 @@ Tests/                   XCTest の単体テスト（ターゲット SevenFourTe
 Tools/
   fakebbs.py             手動確認用の偽の掲示板サーバー
   run-app-with-test-home.sh  一時的な HOME でアプリを起動するスクリプト
-docs/                    記録・設計の文書（retro-reading-flow.md は読み進め操作の記録（#22）、wkwebview-migration.md は WKWebView への移行で置き換える機能（#27、#28））
+docs/                    記録・設計の文書（retro-reading-flow.md は読み進め操作の記録（#22）、wkwebview-migration.md は WKWebView への移行で置き換えた・置き換える機能（#27、#28））
 .github/workflows/       CI（ビルドとテスト）
 ```
 
@@ -134,11 +134,13 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - `.nib` ディレクトリ内のファイルだけを変更しても Xcode は再コンパイルしません。`touch SevenFour/Japanese.lproj/<Name>.nib` してからビルドしてください。
 - IBAction やツールバーのアクション内で発生した Objective-C 例外は AppKit に握りつぶされ、ログにも出ません。「ボタンを押しても何も起きない」場合は、例外を疑って `@try`/`@catch` で一時的にログを出すか、lldb で `objc_exception_throw` にブレークポイントを置いて調べてください。
 - **タブと本文の境界**（#27）: タブバー（`TabbedWebView`）は WebKit を使いません。タブの中身は `NSView<SFTabContent>`（`SFTabContent.h`）で、名前（`-tabTitle`）と読み込み中かどうか（`-isTabLoading`）だけを受け取り、変化は `SFTabContentDidChangeNotification` で知ります。
-  - 本文（`SFThreadView`）がこれを実装します。WebKit 1 の API は `SFThreadView`、`SFMainWindowController` のデリゲート、`SFPopUpWindowController` の中だけで使ってください。
+  - 本文（`SFThreadView`）がこれを実装します。本文は `WKWebView` のサブクラスです（#28）。`sevenfour://` のページは `SFThreadSchemeHandler`（`WKURLSchemeHandler`）が返します。
+  - 本文のリンク・マウスを乗せたリンク・読み込みの開始と終了は、`SFThreadView` のデリゲート（`-setThreadDelegate:`、`SFThreadView.h` の `SFThreadViewDelegate`）で `SFMainWindowController` に伝えます。リンクに乗せたことは、`WKWebView` に API がないので、ユーザースクリプトから `WKScriptMessageHandler` で受け取ります。
+  - レスのポップアップウインドウ（`SFPopUpWindowController`）はまだ WebKit 1 の `WebView` です。WebKit 1 の API はここと、それを扱う `SFMainWindowController` のデリゲート（`WebPolicyDelegate`、`WebUIDelegate`）、`SFURLProtocol` だけで使ってください。
   - 本文の URL やページ内検索も、`SFThreadView` のメソッド（`-pageURL`、`-findString:forward:`）を通します。`SFMainWindowController` からは `-selectedThreadView` で選択中の本文を取ります。
   - WKWebView への移行で置き換える機能と確認の手順は `docs/wkwebview-migration.md` にあります。
   - 本文の WebView のレスポンダーチェーンは差し替えないでください（#44。最初のページがスクロールしなくなります）。
-- **スレッドとメインスレッド**（#9）: `SFThread` / `Ch2Thread` の更新・通知と WebView の操作はメインスレッドで行います。`SFURLProtocol` は CFNetwork のスレッドで動くので、スレの更新と HTML 生成はメインスレッドで行い、結果だけを読み込みを始めたスレッドで client に渡しています。旧 WebView（WebKitLegacy）をメインスレッド以外から触ると例外で終了します。
+- **スレッドとメインスレッド**（#9）: `SFThread` / `Ch2Thread` の更新・通知と WebView の操作はメインスレッドで行います。本文の `SFThreadSchemeHandler` はメインスレッドで動きます。ポップアップ用の `SFURLProtocol` は CFNetwork のスレッドで動くので、スレの更新と HTML 生成はメインスレッドで行い、結果だけを読み込みを始めたスレッドで client に渡しています。旧 WebView（WebKitLegacy）をメインスレッド以外から触ると例外で終了します。
 - **通信（NSURLSession）**（#24、#25、#26）: 板一覧（`Ch2BoardTree`）・スレッド一覧（`Ch2Board`）・画像（`SFImageWindowController`）・DAT（`Ch2Thread -update`）・書き込み（`Ch2Thread -postWithName:mail:body:completionHandler:`）は、すべて `NSURLSession` で非同期に通信します。`NSURLConnection` と同期通信は使わないでください。
   - 結果はメインスレッドで扱います（デリゲートのキューに `[NSOperationQueue mainQueue]` を指定するか、完了ハンドラから `dispatch_async(dispatch_get_main_queue(), ...)`）。
   - 取り消したあとに届いた応答は捨てます（`-cancel`、セッションやタスクが今のものか確認する）。板を離れたとき（`SFNormalBoard` の解放）や画像ウインドウを閉じたときは取り消します。

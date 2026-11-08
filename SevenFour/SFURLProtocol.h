@@ -19,4 +19,14 @@
     BOOL stopped_;
 }
 
+// The thread of a sevenfour:// thread URL, and its range (retained; release
+// it) when the URL has one. Main thread.
++ (void) parseURL: (NSURL*) url
+		   thread: (SFThread**) thread
+			range: (NSString**) range;
+
+// The file of a sevenfour://skin/ URL: the user's skin (Application
+// Support) first, then the app's. nil when there is none.
++ (NSString*) pathOfSkinFile: (NSURL*) url;
+
 @end

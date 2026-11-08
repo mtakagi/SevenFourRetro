@@ -2,10 +2,10 @@
 #import <WebKit/WebKit.h>
 
 @class SFThread;
-@class SFThreadView;
 
 @interface SFPopUpWindowController : NSWindowController <WebFrameLoadDelegate> {
-    IBOutlet SFThreadView* threadView;
+    // A WebKit 1 WebView until the pop-up moves to WKWebView (#28).
+    IBOutlet WebView* threadView;
     BOOL loaded_;
 }
 

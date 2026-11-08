@@ -4,10 +4,9 @@
         {
             CLASS = SFPopUpWindowController; 
             LANGUAGE = ObjC; 
-            OUTLETS = {threadView = SFThreadView; }; 
+            OUTLETS = {threadView = WebView; }; 
             SUPERCLASS = NSWindowController; 
         }, 
-        {CLASS = SFThreadView; LANGUAGE = ObjC; SUPERCLASS = WebView; }, 
         {CLASS = TemporaryPanel; LANGUAGE = ObjC; SUPERCLASS = NSPanel; }
     ); 
     IBVersion = 1; 

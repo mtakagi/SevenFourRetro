@@ -31,7 +31,7 @@
 	}
 }
 
-- (void) startLoadingSkin: (NSURL*) url
++ (NSString*) pathOfSkinFile: (NSURL*) url
 {
 	NSFileManager* manager = [NSFileManager defaultManager];
 	NSString* path;
@@ -43,8 +43,17 @@
 		path = [NSString stringWithFormat: @"%@/Skin/%@", [[NSBundle mainBundle] resourcePath], [url path]];
 		if (! [manager isReadableFileAtPath: path]) {
 			NSLog(@"%@ is not found.", url);
-			return;
+			return nil;
 		}
+	}
+	return path;
+}
+
+- (void) startLoadingSkin: (NSURL*) url
+{
+	NSString* path = [SFURLProtocol pathOfSkinFile: url];
+	if (! path) {
+		return;
 	}
 	
 	// Response
