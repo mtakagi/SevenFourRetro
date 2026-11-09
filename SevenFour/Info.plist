@@ -55,5 +55,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUFeedURL</key>
+	<string>https://github.com/mtakagi/SevenFourRetro/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>WDGVKzgkbIzXOpNGJbxMz5jROopJHVe+0wwyh0PbCYc=</string>
 </dict>
 </plist>

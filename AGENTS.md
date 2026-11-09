@@ -81,9 +81,10 @@ lipo -info build/Build/Products/Release/SevenFour.app/Contents/MacOS/SevenFour
 2. テストを実行する
 3. 一時的なキーチェーンに Developer ID の証明書を入れ、Developer ID・Hardened Runtime・タイムスタンプ付きで Universal の Release ビルドをする（`project.yml` のアドホック署名を `xcodebuild` の引数で上書きする）
 4. `notarytool` で公証し、チケットをアプリに添付する（`stapler`）。`spctl` で Gatekeeper の評価を確認する
-5. `SevenFour-<バージョン>.zip` を添付した **下書き** の GitHub Release を作る。中身を確かめてから手で公開する
+5. Sparkle の appcast（`appcast.xml`）を作る。前の Release の `appcast.xml` に今回の版を足し、EdDSA で署名する（#61）。`SPARKLE_PRIVATE_KEY` が `SUPublicEDKey` と合わない、署名がない、URL が違うときは失敗する
+6. `SevenFour-<バージョン>.zip` と `appcast.xml` を添付した **下書き** の GitHub Release を作る。中身を確かめてから手で公開する（公開するまで、アプリの更新の確認には出ない）
 
-リリースの手順: `project.yml` の `MARKETING_VERSION` と `CURRENT_PROJECT_VERSION` を上げて main にマージし、`git tag v2.0 && git push origin v2.0` する。
+リリースの手順: `project.yml` の `MARKETING_VERSION` と `CURRENT_PROJECT_VERSION` を上げて main にマージし、`git tag v<MARKETING_VERSION> && git push origin v<MARKETING_VERSION>` する。`CURRENT_PROJECT_VERSION`（`CFBundleVersion`）は Sparkle が新しさを比べる番号なので、リリースごとに必ず上げてください。続けてリリースしないでください（`releases/latest` が新しい Release を指すまで数分かかることがあり、その間に次のリリースを作ると前の appcast を取り損ねます）。
 
 Secrets（リポジトリの Settings → Secrets and variables → Actions）:
 
@@ -95,9 +96,11 @@ Secrets（リポジトリの Settings → Secrets and variables → Actions）:
 | `NOTARY_KEY` | `notarytool` 用の App Store Connect API キー（.p8）を base64 にしたもの |
 | `NOTARY_KEY_ID` | API キーの ID |
 | `NOTARY_ISSUER_ID` | API キーの Issuer ID |
+| `SPARKLE_PRIVATE_KEY` | Sparkle の EdDSA の秘密鍵（`generate_keys -x` で書き出したもの）。公開鍵は Info.plist の `SUPublicEDKey` |
 
-- 公証には Hardened Runtime が必要です。WKWebView（Web コンテンツは別プロセス）や通信を含め、追加の entitlements なしで動くことを確認しています。新しく entitlements が必要な機能を足すときは、Hardened Runtime を有効にして試してください（`xcodebuild ... ENABLE_HARDENED_RUNTIME=YES` でビルドし、`Tools/run-app-with-test-home.sh` で起動する。スクリプトは署名し直すときに Hardened Runtime のフラグを残します）。
+- 公証には Hardened Runtime が必要です。WKWebView（Web コンテンツは別プロセス）や通信を含め、追加の entitlements なしで動くことを確認しています。新しく entitlements が必要な機能を足すときは、Hardened Runtime を有効にして試してください（`xcodebuild ... ENABLE_HARDENED_RUNTIME=YES` でビルドし、`Tools/run-app-with-test-home.sh` で起動する。スクリプトは署名し直すときに Hardened Runtime のフラグを残します）。ただし Sparkle を組み込んだので、アドホック署名では Hardened Runtime のライブラリ検証で Sparkle.framework を読み込めず、起動しません（`different Team IDs`）。Developer ID で署名するリリースでは、アプリと Sparkle が同じチームになるので問題ありません。
 - Xcode は `build` で作ったアプリに、デバッグ用の entitlement `com.apple.security.get-task-allow` を付けます。公証はこれを拒否する（`The executable requests the com.apple.security.get-task-allow entitlement.`）ので、リリースのビルドでは `CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO` を指定し、付いていないことを確かめてから公証します。
+- Sparkle（#61）: `Sparkle.framework` の中の helper（`Installer.xpc`、`Downloader.xpc`、`Autoupdate`、`Updater.app`）はアドホック署名で配られていて、`xcodebuild build` は framework の外側しか署名し直しません。リリースでは Sparkle の文書の順に、helper → framework → アプリを Developer ID・Hardened Runtime・タイムスタンプで署名し直してから公証します。
 - 秘密鍵や証明書をリポジトリに入れないでください。
 
 ## テスト
@@ -197,6 +200,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - それ以外の書き込みでは、`time` に現在の UNIX 時刻を送り、以前の確認ページの hidden の値（`sharedFormData_`）も付けます。
   - 実際の掲示板で書き込みに失敗する場合は、`defaults write io.github.mtakagi.SevenFourRetro DebugPostResponse -bool YES` を設定すると、最後の応答が `~/Library/Logs/SevenFour/LastPostResponse.html` に保存されます（書き込んだ本文も含まれます）。
   - 実際の掲示板に書き込んで試さないでください。ローカルの偽サーバー（確認ページ・Cookie・hidden 値を再現したもの）で確認します。
+- **アップデート（Sparkle）**（#61）: Sparkle 2 を Swift Package（`project.yml` の `packages`）で組み込んでいます。`SFAppController -applicationWillFinishLaunching:` で `SPUStandardUpdaterController` を作り、アプリのメニューに「アップデートを確認…」を加えます。フィード（`SUFeedURL`）は `https://github.com/mtakagi/SevenFourRetro/releases/latest/download/appcast.xml`、公開鍵は `SUPublicEDKey`（どちらも Info.plist）。自動で確かめるかどうかは、Sparkle が 2 回目の起動で利用者に聞きます。`generate_appcast` などのツールは、パッケージを解決すると `build/SourcePackages/artifacts/sparkle/Sparkle/bin/` に入ります。
 - **アイコンは SF Symbols を使います**（#5）。画像ファイルは追加しないでください。
   - ツールバー: `Japanese.lproj/Toolbar.plist` の各項目の `symbol` キーにシンボル名を書きます（`SFMainWindowController.m` が `+[NSImage imageWithSystemSymbolName:accessibilityDescription:]` で読み込みます）。
   - 処理中にアニメーションさせる項目（板更新・スレ更新）は、`Toolbar.plist` で `animates` を `true` にします（#15）。その項目は `SFSymbolToolbarItem`（`NSImageView` を持つボタン）で作られ、`-isToolbarItemBusy:` が YES の間、シンボルを回転させます。シンボルエフェクトには `Symbols.framework` が必要です（`project.yml` でリンク済み）。

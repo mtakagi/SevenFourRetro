@@ -11,6 +11,12 @@ options:
   developmentLanguage: ja
   createIntermediateGroups: true
 
+# Sparkle: updates from GitHub Releases (#61).
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.1
+
 settings:
   base:
     MACOSX_DEPLOYMENT_TARGET: "26.0"
@@ -35,10 +41,18 @@ targets:
           # Copied as a folder reference below
           - "Skin"
           - "Skin/**"
+          # Copied as a folder reference below
+          - "Licenses"
+          - "Licenses/**"
           # Processed via INFOPLIST_FILE
           - "Info.plist"
       # Thread HTML skin, copied as a folder to Contents/Resources/Skin
       - path: SevenFour/Skin
+        type: folder
+        buildPhase: resources
+      # Licenses of what the app includes (Sparkle, #61), copied to
+      # Contents/Resources/Licenses
+      - path: SevenFour/Licenses
         type: folder
         buildPhase: resources
     dependencies:
@@ -48,6 +62,7 @@ targets:
       - sdk: Symbols.framework
       - sdk: libsqlite3.tbd
       - sdk: libz.tbd
+      - package: Sparkle
     settings:
       base:
         PRODUCT_NAME: SevenFour
@@ -62,8 +77,8 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         # The release's version (the tag is v<MARKETING_VERSION>) and build
         # number; raise both for each release (#19).
-        MARKETING_VERSION: "2.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "2.1"
+        CURRENT_PROJECT_VERSION: "2"
         GCC_PREFIX_HEADER: SevenFour/SevenFour_Prefix.pch
         GCC_PRECOMPILE_PREFIX_HEADER: YES
         # OgreKit / QuickLite compatibility shims (<OgreKit/OgreKit.h>, <QuickLite/...>)
