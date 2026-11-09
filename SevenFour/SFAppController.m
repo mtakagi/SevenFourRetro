@@ -8,6 +8,7 @@
 #import "FontButton.h"
 #import "Ch2Board.h"
 #import <OgreKit/OgreKit.h>
+#import <Sparkle/Sparkle.h>
 
 NSString* SF_SUPPORT_DIRECTORY = NULL;
 
@@ -241,6 +242,27 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
 		
         [SFThreadHTMLFormatter reloadTemplates];
     }
+}
+
+// Updates from GitHub Releases with Sparkle (#61): the feed (SUFeedURL) is
+// the appcast.xml of the latest release, checked with SUPublicEDKey. Sparkle
+// asks on the second launch whether to check automatically; the app menu
+// gets "アップデートを確認…".
+- (void) applicationWillFinishLaunching: (NSNotification*) n
+{
+    SPUStandardUpdaterController* controller =
+        [[SPUStandardUpdaterController alloc] initWithStartingUpdater: YES
+                                                      updaterDelegate: nil
+                                                   userDriverDelegate: nil];
+    updaterController_ = controller;
+
+    NSMenu* appMenu = [[[NSApp mainMenu] itemAtIndex: 0] submenu];
+    NSMenuItem* item = [[[NSMenuItem alloc] initWithTitle: @"アップデートを確認…"
+                                                   action: @selector(checkForUpdates:)
+                                            keyEquivalent: @""] autorelease];
+    [item setTarget: controller];
+    // After "SevenFour について".
+    [appMenu insertItem: item atIndex: MIN(1, [appMenu numberOfItems])];
 }
 
 - (BOOL) application: (NSApplication*) app openFile: (NSString*) path

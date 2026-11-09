@@ -14,6 +14,13 @@ name: Release
 #                              in base64
 #   NOTARY_KEY_ID              the key's ID
 #   NOTARY_ISSUER_ID           the key's issuer ID
+#   SPARKLE_PRIVATE_KEY        the EdDSA private key for Sparkle's updates
+#                              (generate_keys -x), whose public key is
+#                              SUPublicEDKey in Info.plist (#61)
+#
+# The release also gets appcast.xml, Sparkle's feed: the app reads it from
+# releases/latest/download/appcast.xml, so it goes live when the draft is
+# published.
 
 on:
   push:
@@ -49,9 +56,10 @@ jobs:
           NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           missing=0
-          for name in DEVELOPER_ID_P12 DEVELOPER_ID_P12_PASSWORD APPLE_TEAM_ID NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER_ID; do
+          for name in DEVELOPER_ID_P12 DEVELOPER_ID_P12_PASSWORD APPLE_TEAM_ID NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER_ID SPARKLE_PRIVATE_KEY; do
             if [ -z "${!name}" ]; then
               echo "::error::The secret $name is not set"
               missing=1
@@ -114,6 +122,24 @@ jobs:
             CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
             OTHER_CODE_SIGN_FLAGS="--timestamp --keychain $KEYCHAIN"
 
+      # Sparkle's helpers come signed ad hoc, and Xcode signs only the outer
+      # framework; notarization needs every piece signed with the Developer
+      # ID and the hardened runtime. The order is Sparkle's (sparkle-project.org/
+      # documentation/sandboxing), inside out, then the app.
+      - name: Sign Sparkle's helpers
+        run: |
+          SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+          sign() {
+            codesign --force --sign "Developer ID Application" --keychain "$KEYCHAIN" \
+              --options runtime --timestamp "$@"
+          }
+          sign "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
+          sign --preserve-metadata=entitlements "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
+          sign "$SPARKLE/Versions/B/Autoupdate"
+          sign "$SPARKLE/Versions/B/Updater.app"
+          sign "$SPARKLE"
+          sign "$APP"
+
       - name: Check the app
         run: |
           ARCHS=$(lipo -archs "$APP/Contents/MacOS/SevenFour")
@@ -124,7 +150,7 @@ jobs:
               *) echo "::error::$arch is missing from the app binary"; exit 1 ;;
             esac
           done
-          codesign --verify --strict --verbose=2 "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
           codesign --display --verbose=2 "$APP" 2>&1 | grep -E "Authority|TeamIdentifier|Runtime|Timestamp"
           # Notarization rejects the debugging entitlement.
           ENTITLEMENTS=$(codesign --display --entitlements - --xml "$APP" 2>/dev/null || true)
@@ -163,11 +189,50 @@ jobs:
       - name: Archive app
         run: ditto -c -k --keepParent "$APP" "SevenFour-$VERSION.zip"
 
+      # Sparkle's feed: the last release's appcast.xml with this version
+      # added, signed with the EdDSA key. Each version's zip is downloaded
+      # from its own release (releases/download/<tag>/). No delta updates:
+      # their files would have to be uploaded too.
+      - name: Generate the appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          mkdir appcast
+          cp "SevenFour-$VERSION.zip" appcast/
+          curl -fsSL -o appcast/appcast.xml \
+            "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml" \
+            || echo "No appcast in the latest release: starting a new one"
+          echo "$SPARKLE_PRIVATE_KEY" | build/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast \
+            --ed-key-file - \
+            --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/" \
+            --maximum-deltas 0 \
+            appcast 2>&1 | tee "$RUNNER_TEMP/appcast.log"
+          # A key that doesn't match SUPublicEDKey only gives a warning and
+          # leaves the update unsigned, which every app would then reject.
+          if grep -q "does not match" "$RUNNER_TEMP/appcast.log"; then
+            echo "::error::SPARKLE_PRIVATE_KEY doesn't match SUPublicEDKey in Info.plist"
+            exit 1
+          fi
+          BUILD=$(plutil -extract CFBundleVersion raw "$APP/Contents/Info.plist")
+          python3 - "$BUILD" "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/SevenFour-$VERSION.zip" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          build, url = sys.argv[1], sys.argv[2]
+          ns = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
+          items = [i for i in ET.parse("appcast/appcast.xml").iter("item") if i.findtext(ns + "version") == build]
+          if len(items) != 1:
+              sys.exit(f"::error::appcast.xml has {len(items)} items for build {build}")
+          enclosure = items[0].find("enclosure")
+          if enclosure.get("url") != url or not enclosure.get(ns + "edSignature"):
+              sys.exit(f"::error::The item for build {build} has the wrong URL or no EdDSA signature: {enclosure.attrib}")
+          print(f"appcast.xml: build {build} at {url}, signed")
+          PY
+          cat appcast/appcast.xml
+
       - name: Create a draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "SevenFour-$VERSION.zip" \
+          gh release create "$GITHUB_REF_NAME" "SevenFour-$VERSION.zip" appcast/appcast.xml \
             --draft --title "SevenFour $VERSION" --generate-notes
 
       - name: Remove the keychain
