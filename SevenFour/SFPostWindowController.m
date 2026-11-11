@@ -37,6 +37,59 @@ static NSMutableSet* mails_ = NULL;
 }
 
 #pragma mark Action
+
+// The server's message in a dialog: in a scrolling text view under the
+// title, not as the informative text, which grows the alert past the screen
+// when it is long, as 5ch's confirmation page with its terms is (#66). The
+// text isn't selectable: a selectable text view becomes the sheet's first
+// responder and scrolls itself a line or two down when the sheet opens.
+static NSView* messageView(NSString* message)
+{
+    const CGFloat width = 400;
+    const CGFloat maxHeight = 320;
+
+    NSTextView* text = [[[NSTextView alloc] initWithFrame: NSMakeRect(0, 0, width, 10)] autorelease];
+    [text setEditable: NO];
+    [text setSelectable: NO];
+    [text setDrawsBackground: NO];
+    [text setTextContainerInset: NSZeroSize];
+    [[text textContainer] setLineFragmentPadding: 0];
+    [text setFont: [NSFont systemFontOfSize: [NSFont smallSystemFontSize]]];
+    [text setTextColor: [NSColor labelColor]];
+    [text setString: message];
+
+    // The text's whole height; the view shows up to maxHeight of it and
+    // scrolls for the rest.
+    NSLayoutManager* layout = [text layoutManager];
+    [layout ensureLayoutForTextContainer: [text textContainer]];
+    CGFloat textHeight = ceil(NSHeight([layout usedRectForTextContainer: [text textContainer]]));
+    textHeight = MAX(textHeight, 16);
+
+    NSScrollView* scroll = [[[NSScrollView alloc]
+        initWithFrame: NSMakeRect(0, 0, width, MIN(textHeight, maxHeight))] autorelease];
+    [scroll setHasVerticalScroller: YES];
+    [scroll setAutohidesScrollers: YES];
+    [scroll setDrawsBackground: NO];
+    [scroll setBorderType: NSNoBorder];
+    [text setFrame: NSMakeRect(0, 0, [scroll contentSize].width, textHeight)];
+    [text setMinSize: NSMakeSize(0, textHeight)];
+    [text setMaxSize: NSMakeSize(FLT_MAX, FLT_MAX)];
+    [text setVerticallyResizable: YES];
+    [text setHorizontallyResizable: NO];
+    [text setAutoresizingMask: NSViewWidthSizable];
+    [[text textContainer] setWidthTracksTextView: YES];
+    [scroll setDocumentView: text];
+    return scroll;
+}
+
+// Puts the server's message (nil or empty: none) in alert.
+static void setMessage(NSAlert* alert, NSString* message)
+{
+    if ([message length] > 0) {
+        [alert setAccessoryView: messageView(message)];
+    }
+}
+
 // Sends the post in the background; the window stays usable meanwhile, but
 // the post button is disabled so the post can't be sent twice. When bbs.cgi
 // answers with anything but success (a confirmation page, a warning or an
@@ -106,18 +159,14 @@ static NSMutableSet* mails_ = NULL;
     NSAlert* alert = [[[NSAlert alloc] init] autorelease];
     [alert setAlertStyle: NSAlertStyleInformational];
 
-    // alertMessage is nil when the response was empty; NSAlert raises on a
-    // nil informative text.
+    // alertMessage is nil when the response was empty.
     NSString* message = [thread_ alertMessage];
-    if (! message) {
-        message = @"";
-    }
 
     if (result == Ch2ThreadPostUnknown) {
         // It may have been written: no button sends it again.
         [alert setMessageText: NSLocalizedString(@"Not sure whether the post was written.", @"")];
-        [alert setInformativeText: [NSString stringWithFormat: @"%@\n\n%@",
-            NSLocalizedString(@"Check the updated thread before posting again.", @""), message]];
+        [alert setInformativeText: NSLocalizedString(@"Check the updated thread before posting again.", @"")];
+        setMessage(alert, message);
         [alert addButtonWithTitle: @"OK"];
         [alert beginSheetModalForWindow: [self window] completionHandler: nil];
         return;
@@ -129,7 +178,7 @@ static NSMutableSet* mails_ = NULL;
     [alert setMessageText: needsConfirmation
         ? NSLocalizedString(@"Confirm posting.", @"")
         : NSLocalizedString(@"Failed to post.", @"")];
-    [alert setInformativeText: message];
+    setMessage(alert, message);
 
     [alert addButtonWithTitle: @"OK"];
     [alert addButtonWithTitle: @"Cancel"];
