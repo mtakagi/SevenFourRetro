@@ -135,7 +135,7 @@ python3 Tools/fakebbs.py --port 8765          # 偽の掲示板（別のター�
 Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリを起動
 ```
 
-- `Tools/fakebbs.py`: 板一覧・subject.txt・DAT（Range 対応）と、5ch 風の書き込み確認（確認ページ、Cookie、hidden 値、`?guid=ON`）を返します。板は「テスト板」（2 スレ）のほか、たくさんのスレを読み進める確認用の「読み進め板」（40 スレ、300 レスのスレを含む）と「雑談板」（30 スレ）があります（`docs/retro-reading-flow.md`）。受け付けた書き込みはそのスレの最後に追加されるので、新着の確認にも使えます（メモリ上だけで、起動し直すと元に戻ります）。本文に `ERRORTEST` を含めるとエラーページを返し、`LOSTTEST` を含めると書き込みを受け付けたうえで応答を途中で切ります（結果が分からない場合の確認用）。`--delay 4` で GET の応答を遅らせると更新アイコンの回転を、`--post-delay 3` で書き込みの応答を遅らせると送信中の書き込みウインドウを確認できます。
+- `Tools/fakebbs.py`: 板一覧・subject.txt・DAT（Range 対応）と、5ch 風の書き込み確認（確認ページ、Cookie、hidden 値、`?guid=ON`）を返します。板は「テスト板」（2 スレ）のほか、たくさんのスレを読み進める確認用の「読み進め板」（40 スレ、300 レスのスレを含む）と「雑談板」（30 スレ）があります（`docs/retro-reading-flow.md`）。受け付けた書き込みはそのスレの最後に追加されるので、新着の確認にも使えます（メモリ上だけで、起動し直すと元に戻ります）。本文に `ERRORTEST` を含めるとエラーページを返し（確認ページには、長い確認文を確かめるための注意書きが付きます）、`LOSTTEST` を含めると書き込みを受け付けたうえで応答を途中で切ります（結果が分からない場合の確認用）。`--delay 4` で GET の応答を遅らせると更新アイコンの回転を、`--post-delay 3` で書き込みの応答を遅らせると送信中の書き込みウインドウを確認できます。
 - `Tools/run-app-with-test-home.sh`: `HOME` と `CFFIXED_USER_HOME` を一時ディレクトリにしてアプリを起動します。DB・キャッシュ・Cookie はそこに保存されます。
   - **設定（NSUserDefaults）は HOME を変えても分けられません**（cfprefsd が本当のホームの `~/Library/Preferences` に保存します）。そのため、スクリプトはアプリをコピーしてバンドル ID を `io.github.mtakagi.SevenFourRetro.test` に変えて起動し、終了時にその設定を削除します。普段の設定（`io.github.mtakagi.SevenFourRetro`）には触れません。
   - アプリを操作するときは、このバンドル ID を使ってください（例: `osascript -e 'tell application id "io.github.mtakagi.SevenFourRetro.test" to activate'`）。
@@ -197,7 +197,8 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - 書き込みごとに新しい `NSURLSession` を使います（使い回した接続で失敗した POST を CFNetwork が送り直さないように）。Cookie は共有のストレージを使います。
   - Cookie は自前で `Cookie` ヘッダを組み立てず、共有の `NSHTTPCookieStorage` に任せます。bbs.cgi が書き込み確認ページで発行した Cookie を次の書き込みで送り返す必要があるためです。
   - 確認ページで OK を押したとき（同じ名前・メール・本文での再送）は、確認ページの `<form>`（`action`、hidden の値、送信ボタンの name/value）をブラウザと同じようにそのまま送ります（#12）。値は Shift_JIS で URL エンコードします。
-  - それ以外の書き込みでは、`time` に現在の UNIX 時刻を送り、以前の確認ページの hidden の値（`sharedFormData_`）も付けます。
+  - それ以外の書き込みでは、スレのページ（read.cgi）のフォームと同じ項目（`FROM`・`mail`・`MESSAGE`・`bbs`・`key`・`time`（現在の UNIX 時刻）・`submit`）だけを送ります。以前の確認ページの hidden の値（`feature` など）は付けません。付けていたころは、一度書き込めたスレに次に書き込むと、確認が何度も繰り返されて書き込めませんでした（#65）。
+  - 書き込みの確認・エラーのダイアログは、サーバーのメッセージをスクロールできるテキストで表示します（`SFPostWindowController` の `messageView()`）。5ch の確認ページは利用規約を含んで長いので、`NSAlert` の説明文にすると収まらず、以前はメッセージを 500 文字で切っていました（#66。今の上限は 5000 文字）。
   - 実際の掲示板で書き込みに失敗する場合は、`defaults write io.github.mtakagi.SevenFourRetro DebugPostResponse -bool YES` を設定すると、最後の応答が `~/Library/Logs/SevenFour/LastPostResponse.html` に保存されます（書き込んだ本文も含まれます）。
   - 実際の掲示板に書き込んで試さないでください。ローカルの偽サーバー（確認ページ・Cookie・hidden 値を再現したもの）で確認します。
 - **アップデート（Sparkle）**（#61）: Sparkle 2 を Swift Package（`project.yml` の `packages`）で組み込んでいます。`SFAppController -applicationWillFinishLaunching:` で `SPUStandardUpdaterController` を作り、アプリのメニューに「アップデートを確認…」を加えます。フィード（`SUFeedURL`）は `https://github.com/mtakagi/SevenFourRetro/releases/latest/download/appcast.xml`、公開鍵は `SUPublicEDKey`（どちらも Info.plist）。自動で確かめるかどうかは、Sparkle が 2 回目の起動で利用者に聞きます。`generate_appcast` などのツールは、パッケージを解決すると `build/SourcePackages/artifacts/sparkle/Sparkle/bin/` に入ります。

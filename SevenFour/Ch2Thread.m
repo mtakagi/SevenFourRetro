@@ -20,9 +20,6 @@ static NSString* POST_ERROR;
 static NSString* POST_WAIT;
 static NSString* POST_COOKIE;
 
-// Hidden fields from the last confirmation page, sent back with the next post.
-static NSMutableDictionary* sharedFormData_ = NULL;
-
 @implementation NSString (PercentEscape)
 #include <ctype.h>
 
@@ -314,8 +311,11 @@ static NSString* textFromHTML(NSString* html)
         }
     }
     NSString* result = [lines componentsJoinedByString: @"\n"];
-    if ([result length] > 500) {
-        result = [[result substringToIndex: 500] stringByAppendingString: @"…"];
+    // The dialog scrolls (#66): 5ch's confirmation page, with its terms of
+    // posting, is over 500 characters, which the dialog once cut it to. The
+    // limit is only against a page that isn't a message at all.
+    if ([result length] > 5000) {
+        result = [[result substringToIndex: 5000] stringByAppendingString: @"…"];
     }
     return result;
 }
@@ -473,11 +473,6 @@ static NSString* hostAndPort(NSURL* url)
     }
     return [NSURL URLWithString: [NSString stringWithFormat: @"%@://%@/%@",
                                      SFSchemeOfURL(url), hostAndPort(url), board]];
-}
-
-+ (void) forgetConfirmationFormData
-{
-    [sharedFormData_ removeAllObjects];
 }
 
 - (NSURL*) URLOfDat
@@ -858,28 +853,6 @@ didCompleteWithError: (NSError*) error
     
     [alertMessage_ release];
 
-	// Keep the hidden fields of a confirmation page; bbs.cgi expects them back.
-	// The fields this class sets itself are left out.
-	static NSSet* ownFields = nil;
-	if (! ownFields) {
-		ownFields = [[NSSet alloc] initWithObjects:
-			@"bbs", @"key", @"time", @"submit", @"FROM", @"mail", @"MESSAGE", nil];
-	}
-	OGRegularExpression* pattern = [OGRegularExpression regularExpressionWithString: @"<input\\s[^>]*>"
-	                                                                        options: OgreIgnoreCaseOption];
-	NSEnumerator* enumerator = [pattern matchEnumeratorInString: content];
-	OGRegularExpressionMatch* match;
-	while ((match = [enumerator nextObject]) != nil) {
-        NSDictionary* attrs = parseHTMLAttributes([match matchedString]);
-        NSString* type = [[attrs objectForKey: @"type"] lowercaseString];
-        NSString* name = [attrs objectForKey: @"name"];
-        if (! [type isEqualToString: @"hidden"] || [name length] == 0 || [ownFields containsObject: name]) {
-            continue;
-        }
-        NSString* value = [attrs objectForKey: @"value"];
-        [sharedFormData_ setObject: (value ? value : @"") forKey: name];
-	}	
-
     alertMessage_ = [alertMessageFromHTML(content) retain];
 
     // A confirmation page holds the form to submit for the same post.
@@ -984,13 +957,10 @@ static BOOL postWasNotSent(NSError* error)
         // bbs.cgi rejects a form whose time is far from now.
         [ary addObject: [NSArray arrayWithObjects: @"time",
             [NSString stringWithFormat: @"%lld", (long long) [[NSDate date] timeIntervalSince1970]], nil]];
-
-        // Hidden fields kept from an earlier confirmation page.
-        NSEnumerator* enumerator = [sharedFormData_ keyEnumerator];
-        NSString* key;
-        while ((key = [enumerator nextObject])) {
-            [ary addObject: [NSArray arrayWithObjects: key, [sharedFormData_ objectForKey: key], nil]];
-        }
+        // Only what the thread page's form sends, as a browser posting from
+        // read.cgi would. The hidden fields of an earlier confirmation page
+        // (such as its feature) belong to that page's post: sent with a new
+        // one, bbs.cgi kept asking for confirmation (#65).
         fields = ary;
     }
     [self clearConfirmation];
@@ -1082,10 +1052,6 @@ static BOOL postWasNotSent(NSError* error)
     confirmedPost_ = nil;
     
     /* Initialize static values */
-    if (! sharedFormData_) {
-        sharedFormData_ = [[NSMutableDictionary alloc] init];
-    }
-
     if (! POST_SUCCESS) {
         // The bundle holding Ch2Thread.strings: the app, or the test bundle.
         NSBundle* bundle;

@@ -115,8 +115,6 @@ extern NSString* Ch2ThreadConnectionDidFailNotification;
 - (BOOL) isPosting;
 - (NSString*) alertMessage;
 
-// Forgets the hidden fields kept from earlier confirmation pages.
-+ (void) forgetConfirmationFormData;
 @end
 
 @interface NSObject (Ch2ThreadCacheNotification)

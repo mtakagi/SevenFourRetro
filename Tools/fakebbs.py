@@ -102,8 +102,14 @@ def find_thread(board, number):
 OK = "<html><head><title>書きこみました。</title></head><body>書きこみが終わりました。</body></html>"
 ERROR = ("<html><head><title>ＥＲＲＯＲ！</title></head><body><ul><br></ul>"
          "<b>ERROR: テスト用のエラーです<br>もう一度どうぞ</b><form method=POST></form></body></html>")
+# Long notes, as 5ch's confirmation page has (its terms of posting), so the
+# confirmation dialog can be checked with a long message (#66). Synthetic.
+TERMS = "<br>".join(
+    f"・テスト用の注意書き {i}。確認ダイアログで長い文章が途中で切れないことを確かめるための、意味のない文章です。"
+    for i in range(1, 13))
 CONFIRM = """<html><head><title>■ 書き込み確認 ■</title></head><body><!-- 2ch_X:cookie -->
 <b>書き込み＆クッキー確認</b><br>投稿確認<br>この書き込みで本当にいいですか？<br>
+{terms}
 <form method="POST" action="../test/bbs.cgi?guid=ON">
 {hidden}<input type=hidden name="feature" value="confirmed">
 <input type=submit value="上記全てを承諾して書き込む" name="submit"><br>
@@ -207,7 +213,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         Handler.confirmed = form
         hidden = "".join(f'<input type=hidden name="{k}" value="{html.escape(form.get(k, ""))}">\n'
                          for k in ("FROM", "mail", "MESSAGE", "bbs", "time", "key"))
-        self.send(200, sjis(CONFIRM.format(hidden=hidden)), page, [("Set-Cookie", "MID=confirmed; path=/")])
+        self.send(200, sjis(CONFIRM.format(hidden=hidden, terms=TERMS)), page, [("Set-Cookie", "MID=confirmed; path=/")])
 
 
 def main():

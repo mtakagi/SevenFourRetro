@@ -26,8 +26,16 @@ static NSString* const ERROR_PAGE =
 {
     NSMutableString* page = [NSMutableString stringWithString:
         @"<html><head><title>■ 書き込み確認 ■</title></head><body><!-- 2ch_X:cookie -->"
-        @"<b>書き込み＆クッキー確認</b><br>投稿確認<br>この書き込みで本当にいいですか？<br>"
-        @"<form method=\"POST\" action=\"../test/bbs.cgi?guid=ON\">"];
+        @"<b>書き込み＆クッキー確認</b><br>投稿確認<br>この書き込みで本当にいいですか？<br>"];
+    // Long notes, as 5ch's terms of posting (#66).
+    if (SFTestContains([form objectForKey: @"MESSAGE"], @"LONGTEST")) {
+        int i;
+        for (i = 1; i <= 20; i++) {
+            [page appendFormat: @"・注意書き %d。長い確認のページでも、最後まで読めることを確かめるための文章です。<br>", i];
+        }
+        [page appendString: @"以上を承諾します。<br>"];
+    }
+    [page appendString: @"<form method=\"POST\" action=\"../test/bbs.cgi?guid=ON\">"];
     NSArray* names = [NSArray arrayWithObjects: @"FROM", @"mail", @"MESSAGE", @"bbs", @"time", @"key", nil];
     NSEnumerator* enumerator = [names objectEnumerator];
     NSString* name;
@@ -45,7 +53,6 @@ static NSString* const ERROR_PAGE =
 - (void) setUp
 {
     SFTestClearLocalCookies();
-    [Ch2Thread forgetConfirmationFormData];
     confirmed_ = [[NSMutableDictionary alloc] init];
 
     server_ = [[SFTestHTTPServer alloc] initWithHandler: ^SFTestHTTPResponse* (SFTestHTTPRequest* request) {
@@ -104,7 +111,6 @@ static NSString* const ERROR_PAGE =
     [server_ release];
     [confirmed_ release];
     SFTestClearLocalCookies();
-    [Ch2Thread forgetConfirmationFormData];
 }
 
 - (Ch2Thread*) thread
@@ -203,6 +209,43 @@ static NSString* const ERROR_PAGE =
     XCTAssertEqualObjects([second objectForKey: @"MESSAGE"],
                           @"it's \"q\" <b> & &#128512; (´・ω・`)\n2 行目");
     XCTAssertEqualObjects([second objectForKey: @"MESSAGE"], [first objectForKey: @"MESSAGE"]);
+}
+
+// After a post went through its confirmation page, the next post to the
+// thread sends only the fields of the thread page's form, as a browser would:
+// none of the confirmation page's hidden fields, such as its feature (#65).
+- (void) testNextPostSendsOnlyTheThreadForm
+{
+    Ch2Thread* thread = [self thread];
+    XCTAssertEqual([self post: thread name: @"" mail: @"sage" body: @"一つ目"], Ch2ThreadPostCheckCookie);
+    XCTAssertEqual([self post: thread name: @"" mail: @"sage" body: @"一つ目"], Ch2ThreadPostSuccess);
+
+    XCTAssertEqual([self post: thread name: @"" mail: @"sage" body: @"二つ目"], Ch2ThreadPostCheckCookie);
+    SFTestHTTPRequest* request = [[server_ requests] lastObject];
+    XCTAssertEqualObjects([request path], @"/test/bbs.cgi");
+    NSDictionary* form = [request formFields];
+    NSArray* names = [[form allKeys] sortedArrayUsingSelector: @selector(compare:)];
+    NSArray* expected = [[NSArray arrayWithObjects: @"FROM", @"MESSAGE", @"bbs", @"key", @"mail", @"submit", @"time", nil]
+                            sortedArrayUsingSelector: @selector(compare:)];
+    XCTAssertEqualObjects(names, expected);
+    XCTAssertEqualObjects([form objectForKey: @"MESSAGE"], @"二つ目");
+
+    // And its own confirmation page goes through too.
+    XCTAssertEqual([self post: thread name: @"" mail: @"sage" body: @"二つ目"], Ch2ThreadPostSuccess);
+    XCTAssertEqualObjects([[self lastForm] objectForKey: @"MESSAGE"], @"二つ目");
+    XCTAssertEqual([self postCount], 4u);
+}
+
+// A long confirmation page is shown whole: 5ch's, with its terms of
+// posting, is longer than the 500 characters it was once cut to (#66).
+- (void) testLongConfirmationIsKeptWhole
+{
+    Ch2Thread* thread = [self thread];
+    XCTAssertEqual([self post: thread name: @"" mail: @"" body: @"LONGTEST"], Ch2ThreadPostCheckCookie);
+    NSString* message = [thread alertMessage];
+    XCTAssertTrue([message length] > 500);
+    XCTAssertTrue([message hasSuffix: @"以上を承諾します。"]);
+    XCTAssertTrue(SFTestContains(message, @"・注意書き 20。"));
 }
 
 - (void) testEditedPostIsBuiltAgain
