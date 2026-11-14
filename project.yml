@@ -77,8 +77,8 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         # The release's version (the tag is v<MARKETING_VERSION>) and build
         # number; raise both for each release (#19).
-        MARKETING_VERSION: "2.1"
-        CURRENT_PROJECT_VERSION: "2"
+        MARKETING_VERSION: "2.2"
+        CURRENT_PROJECT_VERSION: "3"
         GCC_PREFIX_HEADER: SevenFour/SevenFour_Prefix.pch
         GCC_PRECOMPILE_PREFIX_HEADER: YES
         # OgreKit / QuickLite compatibility shims (<OgreKit/OgreKit.h>, <QuickLite/...>)
