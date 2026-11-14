@@ -1,0 +1,31 @@
+# clang-format settings for the Objective-C (MRC) sources (#71).
+# Use clang-format 22.1.2, as CI does: Tools/format.sh runs it.
+---
+BasedOnStyle: WebKit
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+# Lines are wrapped by hand; clang-format keeps them as written.
+ColumnLimit: 0
+# NSString* s, as the code has always been written
+PointerAlignment: Left
+# (NSString*) [object value]
+SpaceAfterCStyleCast: true
+# @property (nonatomic, retain)
+ObjCSpaceAfterProperty: true
+ObjCBlockIndentWidth: 4
+# Methods and functions open their brace on a line of its own; if, for,
+# while... on the same line (WebKit).
+BreakBeforeBraces: WebKit
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: Never
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+# The order of the imports is left as written.
+SortIncludes: Never
+MaxEmptyLinesToKeep: 2
+# Comments at the ends of consecutive lines line up.
+AlignTrailingComments:
+  Kind: Always
+KeepEmptyLinesAtTheStartOfBlocks: false
+...

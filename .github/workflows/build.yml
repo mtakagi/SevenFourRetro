@@ -23,6 +23,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The sources must be formatted with clang-format 22.1.2 and
+      # .clang-format (#71); Tools/format.sh formats them.
+      - name: Check formatting
+        run: |
+          python3 -m venv "$RUNNER_TEMP/clang-format"
+          "$RUNNER_TEMP/clang-format/bin/pip" install --quiet clang-format==22.1.2
+          CLANG_FORMAT="$RUNNER_TEMP/clang-format/bin/clang-format" Tools/format.sh --check
+
       - name: Show Xcode version
         run: xcodebuild -version
 

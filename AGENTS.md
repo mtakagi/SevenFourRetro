@@ -34,6 +34,7 @@ Tests/                   XCTest の単体テスト（ターゲット SevenFourTe
 Tools/
   fakebbs.py             手動確認用の偽の掲示板サーバー
   run-app-with-test-home.sh  一時的な HOME でアプリを起動するスクリプト
+  format.sh              clang-format でソースを整形する（--check で確認だけ）
 docs/                    記録・設計の文書（retro-reading-flow.md は読み進め操作の記録（#22）、wkwebview-migration.md は WKWebView への移行で置き換えた機能（#27、#28））
 .github/workflows/       CI（ビルドとテスト）とリリース（署名・公証・GitHub Releases）
 ```
@@ -68,6 +69,7 @@ lipo -info build/Build/Products/Release/SevenFour.app/Contents/MacOS/SevenFour
 
 - `macos-26` ランナー（Xcode 26 以降）で `xcodegen generate` → Universal の Release ビルド
 - アプリのバイナリに arm64 と x86_64 の両方が含まれていることの確認
+- 整形の確認（`Tools/format.sh --check`。clang-format 22.1.2 を PyPI から入れる。下の「コーディング上の注意」を参照）
 - オフラインの回帰テスト（`xcodebuild test`。下の「テスト」を参照）
 - ビルドしたアプリ（`SevenFour.zip`）を Artifact として 7 日間保存
 
@@ -152,6 +154,11 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
 
 ## コーディング上の注意
 
+- **整形は clang-format で行います**（#71）。`SevenFour/` と `Tests/` の `.h` / `.m` は、`.clang-format`（WebKit を基に、インデント 4、行の長さの制限なし、`NSString* s`、`- (void)foo:(id)bar`）に従います。コードを変えたら `Tools/format.sh` を実行してください。CI は `Tools/format.sh --check` で確かめ、整形されていなければ失敗します。
+  - clang-format は版によって結果が変わるので、CI と同じ **22.1.2** を使ってください（`pipx install clang-format==22.1.2`、または `CLANG_FORMAT` にそのパス）。`Tools/format.sh` は違う版だと止まります。
+  - 行の折り返しは手で行います（clang-format は折り返しません）。
+  - ほかのファイル（YAML、Markdown、Python など）は `.editorconfig` に従います（UTF-8、LF、行末の空白なし、最後に改行）。
+  - 整形だけのコミットは `.git-blame-ignore-revs` に書いてあります。`git config blame.ignoreRevsFile .git-blame-ignore-revs` を設定すると、`git blame` がそのコミットを飛ばします（GitHub は自動で飛ばします）。
 - **MRC のまま維持すること。** `retain` / `release` / `autorelease` / `dealloc` のバランスに注意してください。ARC は有効にしないでください（`CLANG_ENABLE_OBJC_ARC: NO`）。
 - 外部フレームワーク（OgreKit、QuickLite）は使えません。`#import <OgreKit/OgreKit.h>` や `#import <QuickLite/...>` は `SevenFour/Compat/` のシムが解決します（`HEADER_SEARCH_PATHS`）。
   - OgreKit シム: Ruby 構文の OgreKit と同様に `^` / `$` は行単位でマッチし、置換文字列の `\0`〜`\9` はキャプチャグループを表します。
