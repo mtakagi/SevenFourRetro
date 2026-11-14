@@ -14,6 +14,6 @@ typedef enum {
     BOOL canBecomeKeyWindow_;
 }
 
-- (void) setCloseEvent: (TemporaryPanelCloseEvent) event;
-- (void) setCanBecomeKeyWindow: (BOOL) flag;
+- (void)setCloseEvent:(TemporaryPanelCloseEvent)event;
+- (void)setCanBecomeKeyWindow:(BOOL)flag;
 @end

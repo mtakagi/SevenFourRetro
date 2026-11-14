@@ -4,12 +4,12 @@
 
 
 @interface FontButton : NSButton <NSFontChanging> {
-	NSFont* font_;
-	NSString* familyKey_;
-	NSString* pointSizeKey_;
+    NSFont* font_;
+    NSString* familyKey_;
+    NSString* pointSizeKey_;
 }
 
-- (void) setFamilyKey: (NSString*) key;
-- (void) setPointSizeKey: (NSString*) key;
+- (void)setFamilyKey:(NSString*)key;
+- (void)setPointSizeKey:(NSString*)key;
 
 @end

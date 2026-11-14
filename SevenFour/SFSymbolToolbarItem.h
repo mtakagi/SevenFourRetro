@@ -15,14 +15,14 @@
     BOOL animating_;
 }
 
-- (id) initWithItemIdentifier: (NSString*) identifier
-                   symbolName: (NSString*) symbol
-                        label: (NSString*) label;
+- (id)initWithItemIdentifier:(NSString*)identifier
+                  symbolName:(NSString*)symbol
+                       label:(NSString*)label;
 
-- (BOOL) isAnimating;
-- (void) setAnimating: (BOOL) flag;
+- (BOOL)isAnimating;
+- (void)setAnimating:(BOOL)flag;
 @end
 
 @interface NSObject (SFSymbolToolbarItemTarget)
-- (BOOL) isToolbarItemBusy: (NSToolbarItem*) item;
+- (BOOL)isToolbarItemBusy:(NSToolbarItem*)item;
 @end

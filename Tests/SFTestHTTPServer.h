@@ -9,14 +9,14 @@
     NSDictionary* headers_;
     NSData* body_;
 }
-- (NSString*) method;
+- (NSString*)method;
 // The request target, including the query (e.g. "/test/bbs.cgi?guid=ON").
-- (NSString*) path;
+- (NSString*)path;
 // Header value by case-insensitive name.
-- (NSString*) header: (NSString*) name;
-- (NSData*) body;
+- (NSString*)header:(NSString*)name;
+- (NSData*)body;
 // application/x-www-form-urlencoded body decoded as Shift_JIS.
-- (NSDictionary*) formFields;
+- (NSDictionary*)formFields;
 @end
 
 // A response: status, extra headers and body. Content-Length is added from
@@ -26,12 +26,12 @@
     NSDictionary* headers_;
     NSData* body_;
 }
-+ (SFTestHTTPResponse*) responseWithStatus: (int) status
-                                   headers: (NSDictionary*) headers
-                                      body: (NSData*) body;
-- (int) status;
-- (NSDictionary*) headers;
-- (NSData*) body;
++ (SFTestHTTPResponse*)responseWithStatus:(int)status
+                                  headers:(NSDictionary*)headers
+                                     body:(NSData*)body;
+- (int)status;
+- (NSDictionary*)headers;
+- (NSData*)body;
 @end
 
 typedef SFTestHTTPResponse* (^SFTestHTTPHandler)(SFTestHTTPRequest* request);
@@ -48,12 +48,12 @@ typedef SFTestHTTPResponse* (^SFTestHTTPHandler)(SFTestHTTPRequest* request);
     dispatch_queue_t queue_;
     NSMutableArray* requests_;
 }
-- (id) initWithHandler: (SFTestHTTPHandler) handler;
-- (BOOL) start;
-- (void) stop;
-- (unsigned short) port;
+- (id)initWithHandler:(SFTestHTTPHandler)handler;
+- (BOOL)start;
+- (void)stop;
+- (unsigned short)port;
 // e.g. http://127.0.0.1:54321/
-- (NSURL*) baseURL;
+- (NSURL*)baseURL;
 // Requests received so far, in order.
-- (NSArray*) requests;
+- (NSArray*)requests;
 @end

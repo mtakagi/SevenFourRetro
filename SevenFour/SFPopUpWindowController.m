@@ -9,49 +9,49 @@ static const CGFloat BORDER = 1.0;
 
 @implementation SFPopUpWindowController
 
-- (id) initWithFrame: (NSRect) frame
+- (id)initWithFrame:(NSRect)frame
 {
-    TemporaryPanel* panel = [[[TemporaryPanel alloc] initWithContentRect: frame
-                                                               styleMask: NSWindowStyleMaskBorderless
-                                                                 backing: NSBackingStoreBuffered
-                                                                   defer: YES] autorelease];
-    self = [super initWithWindow: panel];
-    if (! self) {
+    TemporaryPanel* panel = [[[TemporaryPanel alloc] initWithContentRect:frame
+                                                               styleMask:NSWindowStyleMaskBorderless
+                                                                 backing:NSBackingStoreBuffered
+                                                                   defer:YES] autorelease];
+    self = [super initWithWindow:panel];
+    if (!self) {
         return nil;
     }
-    [panel setCloseEvent: TemporaryPanelCloseWhenExited];
+    [panel setCloseEvent:TemporaryPanelCloseWhenExited];
 
-    [panel setHasShadow: YES];
+    [panel setHasShadow:YES];
 
     // A thin border, so the window stands out from the page under it.
     NSRect bounds = NSMakeRect(0, 0, frame.size.width, frame.size.height);
-    NSView* content = [[[NSView alloc] initWithFrame: bounds] autorelease];
-    [content setWantsLayer: YES];
-    [[content layer] setBorderWidth: BORDER];
-    [[content layer] setBorderColor: [[NSColor grayColor] CGColor]];
-    [panel setContentView: content];
+    NSView* content = [[[NSView alloc] initWithFrame:bounds] autorelease];
+    [content setWantsLayer:YES];
+    [[content layer] setBorderWidth:BORDER];
+    [[content layer] setBorderColor:[[NSColor grayColor] CGColor]];
+    [panel setContentView:content];
 
-    pageView_ = [[SFPageView alloc] initWithFrame: NSInsetRect(bounds, BORDER, BORDER)
-                             reportsContentHeight: YES];
-    [pageView_ setAutoresizingMask: NSViewWidthSizable | NSViewHeightSizable];
-    [content addSubview: pageView_];
-    [panel setInitialFirstResponder: pageView_];
+    pageView_ = [[SFPageView alloc] initWithFrame:NSInsetRect(bounds, BORDER, BORDER)
+                             reportsContentHeight:YES];
+    [pageView_ setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+    [content addSubview:pageView_];
+    [panel setInitialFirstResponder:pageView_];
 
-    [[NSNotificationCenter defaultCenter] addObserver: self
-                                             selector: @selector(contentHeightDidChange:)
-                                                 name: SFPageViewContentHeightDidChangeNotification
-                                               object: pageView_];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(contentHeightDidChange:)
+                                                 name:SFPageViewContentHeightDidChangeNotification
+                                               object:pageView_];
     return self;
 }
 
-- (SFPageView*) pageView
+- (SFPageView*)pageView
 {
     return pageView_;
 }
 
 // Fits the window to the page's height, within the screen. The bottom
 // stays under the mouse, where the window was opened.
-- (void) resizeToHeight: (CGFloat) height
+- (void)resizeToHeight:(CGFloat)height
 {
     NSRect screen = [[[self window] screen] visibleFrame];
     if (NSIsEmptyRect(screen)) {
@@ -72,24 +72,24 @@ static const CGFloat BORDER = 1.0;
         rect.origin.y = screen.origin.y;
 
         // To scroll the page
-        [panel setCanBecomeKeyWindow: YES];
-        [panel makeKeyAndOrderFront: nil];
+        [panel setCanBecomeKeyWindow:YES];
+        [panel makeKeyAndOrderFront:nil];
     }
-    [panel setFrame: rect display: YES];
+    [panel setFrame:rect display:YES];
 }
 
-- (void) contentHeightDidChange: (NSNotification*) n
+- (void)contentHeightDidChange:(NSNotification*)n
 {
-    CGFloat height = [[[n userInfo] objectForKey: SFPageViewContentHeightKey] doubleValue];
+    CGFloat height = [[[n userInfo] objectForKey:SFPageViewContentHeightKey] doubleValue];
     if (height > 0) {
-        [self resizeToHeight: height];
+        [self resizeToHeight:height];
     }
 }
 
-- (void) dealloc
+- (void)dealloc
 {
-    [[NSNotificationCenter defaultCenter] removeObserver: self];
-    [pageView_ setPageDelegate: nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [pageView_ setPageDelegate:nil];
     [pageView_ release];
     [super dealloc];
 }

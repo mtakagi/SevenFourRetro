@@ -22,68 +22,65 @@ extern NSString* const QLDateTime;
 @class QuickLiteCursor;
 @class QuickLiteRow;
 
-@interface QuickLiteDatabase : NSObject
-{
+@interface QuickLiteDatabase : NSObject {
     NSString* path_;
-    void* db_;              /* sqlite3* */
+    void* db_; /* sqlite3* */
     int transactionDepth_;
 }
 
-+ (NSString*) prepareStringForQuery: (NSString*) string;
++ (NSString*)prepareStringForQuery:(NSString*)string;
 
-- (id) initWithFile: (NSString*) path;
-- (BOOL) open: (BOOL) useCache;
-- (BOOL) open;
-- (void) close;
+- (id)initWithFile:(NSString*)path;
+- (BOOL)open:(BOOL)useCache;
+- (BOOL)open;
+- (void)close;
 
-- (QuickLiteCursor*) performQuery: (NSString*) query;
+- (QuickLiteCursor*)performQuery:(NSString*)query;
 
-- (BOOL) createTable: (NSString*) table
-         withColumns: (NSArray*) columns
-        andDatatypes: (NSArray*) datatypes;
+- (BOOL)createTable:(NSString*)table
+        withColumns:(NSArray*)columns
+       andDatatypes:(NSArray*)datatypes;
 
-- (BOOL) beginTransaction;
-- (BOOL) commitTransaction;
+- (BOOL)beginTransaction;
+- (BOOL)commitTransaction;
 
 /* Private: used by QuickLiteCursor */
-- (BOOL) executeUpdate: (NSString*) sql arguments: (NSArray*) arguments;
+- (BOOL)executeUpdate:(NSString*)sql arguments:(NSArray*)arguments;
 @end
 
-@interface QuickLiteCursor : NSObject
-{
+@interface QuickLiteCursor : NSObject {
     QuickLiteDatabase* database_;
     NSMutableArray* rows_;
 }
 
-- (id) initWithDatabase: (QuickLiteDatabase*) database rows: (NSArray*) rows;
+- (id)initWithDatabase:(QuickLiteDatabase*)database rows:(NSArray*)rows;
 
-- (unsigned) rowCount;
-- (QuickLiteRow*) rowAtIndex: (unsigned) index;
+- (unsigned)rowCount;
+- (QuickLiteRow*)rowAtIndex:(unsigned)index;
 
 /* Sets the column on every row of the cursor. Call -save to write back. */
-- (void) setValue: (id) value forColumn: (NSString*) column;
-- (BOOL) save;
+- (void)setValue:(id)value forColumn:(NSString*)column;
+- (BOOL)save;
 @end
 
-@interface QuickLiteRow : NSObject
-{
+@interface QuickLiteRow : NSObject {
     NSMutableDictionary* values_;
-    NSMutableDictionary* changes_;   /* "table.column" -> value */
+    NSMutableDictionary* changes_; /* "table.column" -> value */
     long long rowUID_;
     BOOL hasRowUID_;
 }
 
-- (id) initWithValues: (NSDictionary*) values rowUID: (long long) uid hasRowUID: (BOOL) hasUID;
+- (id)initWithValues:(NSDictionary*)values rowUID:(long long)uid hasRowUID:(BOOL)hasUID;
 
-- (id) valueForColumn: (NSString*) column;
-- (NSString*) stringForColumn: (NSString*) column;
-- (int) intValueForColumn: (NSString*) column;
-- (BOOL) boolValueForColumn: (NSString*) column;
+- (id)valueForColumn:(NSString*)column;
+- (NSString*)stringForColumn:(NSString*)column;
+- (int)intValueForColumn:(NSString*)column;
+- (BOOL)boolValueForColumn:(NSString*)column;
 
 /* Private: used by QuickLiteCursor */
-- (void) setValue: (id) value forColumn: (NSString*) column;
-- (NSDictionary*) changes;
-- (void) clearChanges;
-- (long long) rowUID;
-- (BOOL) hasRowUID;
+- (void)setValue:(id)value forColumn:(NSString*)column;
+- (NSDictionary*)changes;
+- (void)clearChanges;
+- (long long)rowUID;
+- (BOOL)hasRowUID;
 @end

@@ -35,21 +35,21 @@ extern NSString* Ch2ThreadConnectionDidFailNotification;
     NSURL* board_;
     int number_;
     int oldCount_;
-    
+
     NSMutableData* receivedData_;
     // The DAT download: its session, the cache size it asked to continue
     // from (0 for the whole DAT), and the HTTP status it got.
     NSURLSession* session_;
     NSUInteger requestedOffset_;
     NSInteger status_;
-    
+
     NSString* alertMessage_;
-    
+
     BOOL isUpdating_;
     BOOL isPosting_;
-    
+
     id delegate_;
-    
+
     NSString* userAgent_;
 
     // The form of the last confirmation page bbs.cgi returned, and the post it
@@ -61,70 +61,69 @@ extern NSString* Ch2ThreadConnectionDidFailNotification;
     NSString* confirmedPost_;
 }
 
-- (id) initWithNumber: (int) number
-				board: (NSURL*) board;
+- (id)initWithNumber:(int)number
+               board:(NSURL*)board;
 
-- (NSString*) subject;
-- (int) count;
-- (int) newCount;
-- (int) number;
+- (NSString*)subject;
+- (int)count;
+- (int)newCount;
+- (int)number;
 
-- (NSURL*) URLOfBoard;
-- (NSURL*) URLOfHTML;
-- (NSURL*) URLOfDat;
+- (NSURL*)URLOfBoard;
+- (NSURL*)URLOfHTML;
+- (NSURL*)URLOfDat;
 
 // The read.cgi and DAT URLs of a thread. Both keep the board's port.
-+ (NSURL*) URLOfHTMLWithBoard: (NSURL*) board
-                       number: (int) number;
-+ (NSURL*) URLOfDatWithBoard: (NSURL*) board
-                      number: (int) number;
++ (NSURL*)URLOfHTMLWithBoard:(NSURL*)board
+                      number:(int)number;
++ (NSURL*)URLOfDatWithBoard:(NSURL*)board
+                     number:(int)number;
 
 // The board of a thread URL, keeping its host and port, and the thread
 // number in *number:
 //   <scheme>://host[:port]/test/read.cgi/BOARD/NUMBER[/RANGE]
 //   <scheme>://host[:port]/BOARD/dat/NUMBER.dat
 // The board's scheme is SFSchemeOfURL(url). Returns nil for other URLs.
-+ (NSURL*) boardOfThreadURL: (NSURL*) url
-                     number: (int*) number;
++ (NSURL*)boardOfThreadURL:(NSURL*)url
+                    number:(int*)number;
 
-- (NSDictionary*) messageAtIndex: (int) no;
+- (NSDictionary*)messageAtIndex:(int)no;
 
-- (NSString*) userAgent;
-- (void) setUserAgent: (NSString*) name;
+- (NSString*)userAgent;
+- (void)setUserAgent:(NSString*)name;
 
-- (void) setDelegate: (id) delegate;
+- (void)setDelegate:(id)delegate;
 
 // Downloads the DAT (only what the cache lacks) in the background. When it
 // is over, Ch2ThreadDidFinishUpdatingNotification (loaded, unchanged or an
 // HTTP error) or Ch2ThreadConnectionDidFailNotification (no reply) is posted
 // on the main thread. An -update while one is running is ignored.
-- (void) update;
+- (void)update;
 // Stops the current update without posting any notification or writing the
 // cache.
-- (void) cancel;
-- (BOOL) isUpdating;
+- (void)cancel;
+- (BOOL)isUpdating;
 
 // Sends a post in the background and calls the handler on the main thread
 // with the result; -alertMessage then holds the server's message. Returns
 // NO, without sending or calling the handler, while another post of this
 // thread is being sent.
-- (BOOL) postWithName: (NSString*) name
-                 mail: (NSString*) mail
-                 body: (NSString*) body
-    completionHandler: (Ch2ThreadPostHandler) handler;
-- (BOOL) isPosting;
-- (NSString*) alertMessage;
+- (BOOL)postWithName:(NSString*)name
+                 mail:(NSString*)mail
+                 body:(NSString*)body
+    completionHandler:(Ch2ThreadPostHandler)handler;
+- (BOOL)isPosting;
+- (NSString*)alertMessage;
 
 @end
 
 @interface NSObject (Ch2ThreadCacheNotification)
-- (NSData*) threadLoadCache: (Ch2Thread*) t;
-- (void) thread: (Ch2Thread*) t writeCache: (NSData*) data;
-- (NSDate*) threadCacheModificationDate: (Ch2Thread*) t;
+- (NSData*)threadLoadCache:(Ch2Thread*)t;
+- (void)thread:(Ch2Thread*)t writeCache:(NSData*)data;
+- (NSDate*)threadCacheModificationDate:(Ch2Thread*)t;
 @end
 
 @interface NSString (URLencode)
-- (NSString*) URLencode;
-- (NSString*) URLdecode;
+- (NSString*)URLencode;
+- (NSString*)URLdecode;
 @end
-

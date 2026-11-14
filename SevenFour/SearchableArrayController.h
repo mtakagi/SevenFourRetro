@@ -6,7 +6,6 @@
     NSString* keyword_;
 }
 
-- (IBAction) search: (id) sender;
+- (IBAction)search:(id)sender;
 
 @end
-

@@ -10,10 +10,10 @@
 
 @implementation SFTestHTTPRequest
 
-- (id) initWithMethod: (NSString*) method
-                 path: (NSString*) path
-              headers: (NSDictionary*) headers
-                 body: (NSData*) body
+- (id)initWithMethod:(NSString*)method
+                path:(NSString*)path
+             headers:(NSDictionary*)headers
+                body:(NSData*)body
 {
     self = [super init];
     method_ = [method copy];
@@ -23,7 +23,7 @@
     return self;
 }
 
-- (void) dealloc
+- (void)dealloc
 {
     [method_ release];
     [path_ release];
@@ -32,18 +32,27 @@
     [super dealloc];
 }
 
-- (NSString*) method { return method_; }
-- (NSString*) path { return path_; }
-- (NSData*) body { return body_; }
-
-- (NSString*) header: (NSString*) name
+- (NSString*)method
 {
-    return [headers_ objectForKey: [name lowercaseString]];
+    return method_;
+}
+- (NSString*)path
+{
+    return path_;
+}
+- (NSData*)body
+{
+    return body_;
 }
 
-- (NSDictionary*) formFields
+- (NSString*)header:(NSString*)name
 {
-    NSString* s = [[[NSString alloc] initWithData: body_ encoding: NSASCIIStringEncoding] autorelease];
+    return [headers_ objectForKey:[name lowercaseString]];
+}
+
+- (NSDictionary*)formFields
+{
+    NSString* s = [[[NSString alloc] initWithData:body_ encoding:NSASCIIStringEncoding] autorelease];
     return SFTestDecodeForm(s);
 }
 
@@ -52,9 +61,9 @@
 
 @implementation SFTestHTTPResponse
 
-+ (SFTestHTTPResponse*) responseWithStatus: (int) status
-                                   headers: (NSDictionary*) headers
-                                      body: (NSData*) body
++ (SFTestHTTPResponse*)responseWithStatus:(int)status
+                                  headers:(NSDictionary*)headers
+                                     body:(NSData*)body
 {
     SFTestHTTPResponse* r = [[[SFTestHTTPResponse alloc] init] autorelease];
     r->status_ = status;
@@ -63,23 +72,32 @@
     return r;
 }
 
-- (void) dealloc
+- (void)dealloc
 {
     [headers_ release];
     [body_ release];
     [super dealloc];
 }
 
-- (int) status { return status_; }
-- (NSDictionary*) headers { return headers_; }
-- (NSData*) body { return body_; }
+- (int)status
+{
+    return status_;
+}
+- (NSDictionary*)headers
+{
+    return headers_;
+}
+- (NSData*)body
+{
+    return body_;
+}
 
 @end
 
 
 @implementation SFTestHTTPServer
 
-- (id) initWithHandler: (SFTestHTTPHandler) handler
+- (id)initWithHandler:(SFTestHTTPHandler)handler
 {
     self = [super init];
     handler_ = [handler copy];
@@ -89,7 +107,7 @@
     return self;
 }
 
-- (void) dealloc
+- (void)dealloc
 {
     [self stop];
     [handler_ release];
@@ -98,24 +116,24 @@
     [super dealloc];
 }
 
-- (unsigned short) port
+- (unsigned short)port
 {
     return port_;
 }
 
-- (NSURL*) baseURL
+- (NSURL*)baseURL
 {
-    return [NSURL URLWithString: [NSString stringWithFormat: @"http://127.0.0.1:%u/", port_]];
+    return [NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%u/", port_]];
 }
 
-- (NSArray*) requests
+- (NSArray*)requests
 {
-    @synchronized (requests_) {
+    @synchronized(requests_) {
         return [[requests_ copy] autorelease];
     }
 }
 
-- (BOOL) start
+- (BOOL)start
 {
     socket_ = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_ < 0) {
@@ -146,7 +164,7 @@
         if (client >= 0) {
             [self retain];
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
-                [self serveClient: client];
+                [self serveClient:client];
                 [self release];
             });
         }
@@ -158,7 +176,7 @@
     return YES;
 }
 
-- (void) stop
+- (void)stop
 {
     if (source_) {
         dispatch_source_cancel(source_);
@@ -169,7 +187,7 @@
 }
 
 // Reads one request, answers it and closes the connection.
-- (void) serveClient: (int) client
+- (void)serveClient:(int)client
 {
     NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
 
@@ -180,7 +198,7 @@
 
     NSMutableData* data = [NSMutableData data];
     NSRange end = NSMakeRange(NSNotFound, 0);
-    NSData* separator = [NSData dataWithBytes: "\r\n\r\n" length: 4];
+    NSData* separator = [NSData dataWithBytes:"\r\n\r\n" length:4];
     char buffer[8192];
     while (end.location == NSNotFound) {
         ssize_t n = read(client, buffer, sizeof(buffer));
@@ -189,70 +207,70 @@
             [pool release];
             return;
         }
-        [data appendBytes: buffer length: n];
-        end = [data rangeOfData: separator options: 0 range: NSMakeRange(0, [data length])];
+        [data appendBytes:buffer length:n];
+        end = [data rangeOfData:separator options:0 range:NSMakeRange(0, [data length])];
     }
 
-    NSString* head = [[[NSString alloc] initWithData: [data subdataWithRange: NSMakeRange(0, end.location)]
-                                            encoding: NSISOLatin1StringEncoding] autorelease];
-    NSArray* lines = [head componentsSeparatedByString: @"\r\n"];
-    NSArray* requestLine = [[lines objectAtIndex: 0] componentsSeparatedByString: @" "];
+    NSString* head = [[[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, end.location)]
+                                            encoding:NSISOLatin1StringEncoding] autorelease];
+    NSArray* lines = [head componentsSeparatedByString:@"\r\n"];
+    NSArray* requestLine = [[lines objectAtIndex:0] componentsSeparatedByString:@" "];
     NSMutableDictionary* headers = [NSMutableDictionary dictionary];
     NSUInteger i;
     for (i = 1; i < [lines count]; i++) {
-        NSString* line = [lines objectAtIndex: i];
-        NSRange colon = [line rangeOfString: @":"];
+        NSString* line = [lines objectAtIndex:i];
+        NSRange colon = [line rangeOfString:@":"];
         if (colon.location == NSNotFound) {
             continue;
         }
-        NSString* name = [[line substringToIndex: colon.location] lowercaseString];
-        NSString* value = [[line substringFromIndex: colon.location + 1]
-                              stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceCharacterSet]];
-        [headers setObject: value forKey: name];
+        NSString* name = [[line substringToIndex:colon.location] lowercaseString];
+        NSString* value = [[line substringFromIndex:colon.location + 1]
+            stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        [headers setObject:value forKey:name];
     }
 
     NSUInteger bodyStart = NSMaxRange(end);
-    NSUInteger contentLength = (NSUInteger) [[headers objectForKey: @"content-length"] integerValue];
+    NSUInteger contentLength = (NSUInteger)[[headers objectForKey:@"content-length"] integerValue];
     while ([data length] < bodyStart + contentLength) {
         ssize_t n = read(client, buffer, sizeof(buffer));
         if (n <= 0) {
             break;
         }
-        [data appendBytes: buffer length: n];
+        [data appendBytes:buffer length:n];
     }
     NSUInteger available = [data length] - bodyStart;
-    NSData* body = [data subdataWithRange: NSMakeRange(bodyStart, MIN(contentLength, available))];
+    NSData* body = [data subdataWithRange:NSMakeRange(bodyStart, MIN(contentLength, available))];
 
     SFTestHTTPRequest* request = [[[SFTestHTTPRequest alloc]
-        initWithMethod: ([requestLine count] > 0 ? [requestLine objectAtIndex: 0] : @"")
-                  path: ([requestLine count] > 1 ? [requestLine objectAtIndex: 1] : @"/")
-               headers: headers
-                  body: body] autorelease];
-    @synchronized (requests_) {
-        [requests_ addObject: request];
+        initWithMethod:([requestLine count] > 0 ? [requestLine objectAtIndex:0] : @"")
+                  path:([requestLine count] > 1 ? [requestLine objectAtIndex:1] : @"/")
+               headers:headers
+                  body:body] autorelease];
+    @synchronized(requests_) {
+        [requests_ addObject:request];
     }
 
     SFTestHTTPResponse* response = handler_(request);
-    if (! response) {
-        response = [SFTestHTTPResponse responseWithStatus: 404 headers: nil body: [NSData data]];
+    if (!response) {
+        response = [SFTestHTTPResponse responseWithStatus:404 headers:nil body:[NSData data]];
     }
 
-    NSMutableString* responseHead = [NSMutableString stringWithFormat: @"HTTP/1.1 %d X\r\n", [response status]];
+    NSMutableString* responseHead = [NSMutableString stringWithFormat:@"HTTP/1.1 %d X\r\n", [response status]];
     // A Content-Length set by the test wins, e.g. to send a reply cut short.
-    if (! [[response headers] objectForKey: @"Content-Length"]) {
-        [responseHead appendFormat: @"Content-Length: %lu\r\n", (unsigned long) [[response body] length]];
+    if (![[response headers] objectForKey:@"Content-Length"]) {
+        [responseHead appendFormat:@"Content-Length: %lu\r\n", (unsigned long) [[response body] length]];
     }
-    [responseHead appendString: @"Connection: close\r\n"];
+    [responseHead appendString:@"Connection: close\r\n"];
     NSEnumerator* enumerator = [[response headers] keyEnumerator];
     NSString* name;
     while ((name = [enumerator nextObject]) != nil) {
-        [responseHead appendFormat: @"%@: %@\r\n", name, [[response headers] objectForKey: name]];
+        [responseHead appendFormat:@"%@: %@\r\n", name, [[response headers] objectForKey:name]];
     }
-    [responseHead appendString: @"\r\n"];
+    [responseHead appendString:@"\r\n"];
 
-    NSMutableData* out = [NSMutableData dataWithData: [responseHead dataUsingEncoding: NSISOLatin1StringEncoding]];
+    NSMutableData* out = [NSMutableData dataWithData:[responseHead dataUsingEncoding:NSISOLatin1StringEncoding]];
     if ([response body]) {
-        [out appendData: [response body]];
+        [out appendData:[response body]];
     }
     const char* bytes = [out bytes];
     NSUInteger written = 0;

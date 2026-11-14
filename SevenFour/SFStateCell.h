@@ -4,7 +4,6 @@
 
 
 @interface SFStateCell : NSActionCell {
-
 }
 
 @end

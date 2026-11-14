@@ -3,13 +3,13 @@
 #import "SFBoard.h"
 
 @interface SFSmartBoard : SFBoard {
-	NSString* query_;
-	NSMutableArray* threads_;
+    NSString* query_;
+    NSMutableArray* threads_;
 }
 
-- (id) initWithQuery: (NSString*) query
-			   title: (NSString*) title;
-- (void) setQuery: (NSString*) query;
-- (NSArray*) threads;
+- (id)initWithQuery:(NSString*)query
+              title:(NSString*)title;
+- (void)setQuery:(NSString*)query;
+- (NSArray*)threads;
 
 @end

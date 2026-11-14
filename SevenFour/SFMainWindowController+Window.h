@@ -9,5 +9,5 @@
 // The main window: the three-pane split view with the thread list on top
 // and the thread tabs below. The board list (the side view) is added by
 // -setUpWindow.
-- (NSWindow*) makeWindow;
+- (NSWindow*)makeWindow;
 @end

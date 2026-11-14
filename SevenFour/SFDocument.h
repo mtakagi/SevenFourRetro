@@ -11,39 +11,38 @@
 // newly downloaded board list.
 extern NSString* SFBoardTreeDidChangeNotification;
 
-@interface SFDocument : NSDocument
-{        
+@interface SFDocument : NSDocument {
     SFBoard* board_;
 
     BOOL offline_;
     int workingJobs_;
-	
-	NSURL* URLOfThread_;
-	
-	SFMainWindowController* windowController_;
+
+    NSURL* URLOfThread_;
+
+    SFMainWindowController* windowController_;
 }
 
-- (BOOL) isWorking;
+- (BOOL)isWorking;
 
-- (BOOL) openBoard: (NSURL*) url
-			 title: (NSString*) title;
-- (void) updateBoard;
+- (BOOL)openBoard:(NSURL*)url
+            title:(NSString*)title;
+- (void)updateBoard;
 
-- (NSString*) boardName;
-- (NSURL*) URLOfBoard;
+- (NSString*)boardName;
+- (NSURL*)URLOfBoard;
 // - (NSURL*) initialURL;
 
-+ (NSDictionary*) sharedBoardTree;
-+ (void) updateBoardTree;
-+ (BOOL) isUpdatingBoardTree;
++ (NSDictionary*)sharedBoardTree;
++ (void)updateBoardTree;
++ (BOOL)isUpdatingBoardTree;
 
-- (BOOL) isOffline;
+- (BOOL)isOffline;
 
-- (IBAction) updateBoardTreePList;
+- (IBAction)updateBoardTreePList;
 
-+ (SFThread*) threadWithURL: (NSURL*) url;
++ (SFThread*)threadWithURL:(NSURL*)url;
 
-- (void) setBoard: (SFBoard*) board;
-- (SFBoard*) board;
+- (void)setBoard:(SFBoard*)board;
+- (SFBoard*)board;
 
 @end
