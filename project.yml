@@ -121,6 +121,7 @@ targets:
       - SevenFour/Ch2DatParser.m
       - SevenFour/Ch2Thread.m
       - SevenFour/Ch2ShiftJIS.m
+      - SevenFour/Ch2Anchor.m
       - SevenFour/Compat/OgreKit/OgreKit.m
       - SevenFour/Compat/QuickLite/QuickLite.m
       - path: SevenFour/Ch2Thread.strings

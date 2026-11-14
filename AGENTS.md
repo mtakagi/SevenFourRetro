@@ -125,6 +125,7 @@ xcodebuild -project SevenFour.xcodeproj -scheme SevenFour -destination 'platform
   - `Ch2ThreadPostTests`: 書き込み（確認ページの再送、エラー、Shift_JIS）
   - `QuickLiteTests`: SQLite シム
   - `Ch2ShiftJISTests`: Shift_JIS（CP932）の読み込み（拡張文字、壊れたバイト、途中で切れたデータ）
+  - `Ch2AnchorTests`: 本文のアンカー（`>>12`、`＞＞７９０`、`≫1-3` など）のリンク（`Ch2MarkupAnchors()`、#70）
 
 ### 手動での確認（スモークテスト）
 
