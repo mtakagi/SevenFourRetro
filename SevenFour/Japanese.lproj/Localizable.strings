@@ -16,3 +16,6 @@
 "Quit without posting?" = "書き込まずに終了しますか？";
 "A post window has text you haven't posted. It will be lost." = "まだ書き込んでいない本文のある書き込みウインドウがあります。終了すると、その本文は失われます。";
 "Quit" = "終了";
+"Move SevenFour to the Applications folder." = "SevenFour を「アプリケーション」フォルダに移してください";
+"SevenFour was opened where it was downloaded, so macOS runs it from a temporary place. Moving or replacing the app while it runs makes it quit unexpectedly, and it can't be updated. Quit SevenFour, move it to the Applications folder in the Finder, and open it again." = "ダウンロードした場所から開いたため、macOS が SevenFour を一時的な場所から実行しています。このまま使うと、実行中にアプリを移動したり置き換えたりしたときに突然終了し、アップデートもできません。SevenFour を終了し、Finder で「アプリケーション」フォルダに移してから、もう一度開いてください。";
+"Keep Using" = "このまま使う";

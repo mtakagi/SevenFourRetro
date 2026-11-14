@@ -3,10 +3,11 @@
 # caches and cookies go to a temporary directory instead of yours.
 # The board list comes from the fake server (Tools/fakebbs.py).
 #
-#   Tools/run-app-with-test-home.sh [path/to/SevenFour.app] [board list URL]
+#   Tools/run-app-with-test-home.sh [path/to/SevenFour.app] [board list URL] [app arguments...]
 #
 # Defaults: build/Build/Products/Release/SevenFour.app and
-# http://127.0.0.1:8765/bbsmenu.html. The temporary HOME is printed and kept
+# http://127.0.0.1:8765/bbsmenu.html. Arguments after the URL go to the app,
+# e.g. "-SFAssumeAppTranslocation YES" to set a default for this run only. The temporary HOME is printed and kept
 # after the app quits, so its files can be inspected.
 #
 # Settings (NSUserDefaults: window frames, split positions, toolbar...) are
@@ -46,4 +47,4 @@ forget_settings
 trap forget_settings EXIT
 
 HOME=$TEST_HOME CFFIXED_USER_HOME=$TEST_HOME \
-  "$TEST_APP/Contents/MacOS/SevenFour" -URLOfBoardTree "$MENU"
+  "$TEST_APP/Contents/MacOS/SevenFour" -URLOfBoardTree "$MENU" "${@:3}"
