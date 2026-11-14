@@ -5,6 +5,7 @@
 #import "SFDocument.h"
 #import "SFMainWindowController.h"
 #import "SFPostWindowController.h"
+#import "SFAppTranslocation.h"
 #import "SFThreadHTMLFormatter.h"
 #import "FontButton.h"
 #import "Ch2Board.h"
@@ -264,6 +265,30 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
     [item setTarget: controller];
     // After "SevenFour について".
     [appMenu insertItem: item atIndex: MIN(1, [appMenu numberOfItems])];
+}
+
+// Opened where it was downloaded, the app runs translocated, from a place
+// macOS removes when the app is moved or replaced, which crashes it; Sparkle
+// can't update it there either (#68). Asks to quit and move the app to the
+// Applications folder first. The SFAssumeAppTranslocation default (for
+// trying it out) shows the dialog anyway.
+- (void) applicationDidFinishLaunching: (NSNotification*) n
+{
+    NSString* path = [[NSBundle mainBundle] bundlePath];
+    BOOL translocated = SFIsTranslocatedPath(path)
+        || [[NSUserDefaults standardUserDefaults] boolForKey: @"SFAssumeAppTranslocation"];
+    if (! translocated) {
+        return;
+    }
+    NSAlert* alert = [[[NSAlert alloc] init] autorelease];
+    [alert setAlertStyle: NSAlertStyleWarning];
+    [alert setMessageText: NSLocalizedString(@"Move SevenFour to the Applications folder.", @"")];
+    [alert setInformativeText: NSLocalizedString(@"SevenFour was opened where it was downloaded, so macOS runs it from a temporary place. Moving or replacing the app while it runs makes it quit unexpectedly, and it can't be updated. Quit SevenFour, move it to the Applications folder in the Finder, and open it again.", @"")];
+    [alert addButtonWithTitle: NSLocalizedString(@"Quit", @"")];
+    [alert addButtonWithTitle: NSLocalizedString(@"Keep Using", @"")];
+    if ([alert runModal] == NSAlertFirstButtonReturn) {
+        [NSApp terminate: nil];
+    }
 }
 
 // Quitting asks first when a post window has text not yet posted, which

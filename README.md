@@ -32,6 +32,7 @@ SevenFour は、2005〜2006 年ごろに書かれた Mac OS X 用の 2ch ブラ�
 
 [GitHub Releases](https://github.com/mtakagi/SevenFourRetro/releases) から `SevenFour-<バージョン>.zip` をダウンロードし、展開した `SevenFour.app` をアプリケーションフォルダに入れてください。macOS 26 以降の Apple silicon と Intel の Mac で動きます。
 
+- **「アプリケーション」フォルダに移してから開いてください。** ダウンロードした場所（「ダウンロード」フォルダなど）から開くと、macOS がアプリを一時的な場所から実行します（App Translocation）。そのまま使っていると、実行中にアプリを移動したり置き換えたりしたときに突然終了し、アップデートもできません。その場合は、アプリが移すよう案内します（#68）。
 - アプリは Developer ID で署名し、Apple の公証を受けています。
 - 2.1 からは、アプリのメニューの「アップデートを確認…」（Sparkle）で新しい版に更新できます。2.0 を使っている場合は、2.1 を一度だけ手で入れてください。
 - バンドル ID は `io.github.mtakagi.SevenFourRetro` です。元の SevenFour（`com.xrea.s74.quux.SevenFour`）や Swift 移植版（`io.github.mtakagi.SevenFour`）とは別のアプリとして扱われるので、設定（ウインドウの位置や板一覧の URL など）は引き継がれません。ログと索引（`~/Library/Application Support/SevenFour`）は同じ場所を使います。

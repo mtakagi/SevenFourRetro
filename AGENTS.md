@@ -126,6 +126,7 @@ xcodebuild -project SevenFour.xcodeproj -scheme SevenFour -destination 'platform
   - `QuickLiteTests`: SQLite シム
   - `Ch2ShiftJISTests`: Shift_JIS（CP932）の読み込み（拡張文字、壊れたバイト、途中で切れたデータ）
   - `Ch2AnchorTests`: 本文のアンカー（`>>12`、`＞＞７９０`、`≫1-3` など）のリンク（`Ch2MarkupAnchors()`、#70）
+  - `SFAppTranslocationTests`: App Translocation のパスの判定（#68）
 
 ### 手動での確認（スモークテスト）
 
@@ -139,6 +140,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
 - `Tools/fakebbs.py`: 板一覧・subject.txt・DAT（Range 対応）と、5ch 風の書き込み確認（確認ページ、Cookie、hidden 値、`?guid=ON`）を返します。板は「テスト板」（2 スレ）のほか、たくさんのスレを読み進める確認用の「読み進め板」（40 スレ、300 レスのスレを含む）と「雑談板」（30 スレ）があります（`docs/retro-reading-flow.md`）。受け付けた書き込みはそのスレの最後に追加されるので、新着の確認にも使えます（メモリ上だけで、起動し直すと元に戻ります）。本文に `ERRORTEST` を含めるとエラーページを返し（確認ページには、長い確認文を確かめるための注意書きが付きます）、`LOSTTEST` を含めると書き込みを受け付けたうえで応答を途中で切ります（結果が分からない場合の確認用）。`--delay 4` で GET の応答を遅らせると更新アイコンの回転を、`--post-delay 3` で書き込みの応答を遅らせると送信中の書き込みウインドウを確認できます。
 - `Tools/run-app-with-test-home.sh`: `HOME` と `CFFIXED_USER_HOME` を一時ディレクトリにしてアプリを起動します。DB・キャッシュ・Cookie はそこに保存されます。
   - **設定（NSUserDefaults）は HOME を変えても分けられません**（cfprefsd が本当のホームの `~/Library/Preferences` に保存します）。そのため、スクリプトはアプリをコピーしてバンドル ID を `io.github.mtakagi.SevenFourRetro.test` に変えて起動し、終了時にその設定を削除します。普段の設定（`io.github.mtakagi.SevenFourRetro`）には触れません。
+  - URL のあとの引数はアプリに渡されます。その回だけ設定を変えて起動できます（例: `Tools/run-app-with-test-home.sh build/Build/Products/Release/SevenFour.app http://127.0.0.1:8765/bbsmenu.html -SFAssumeAppTranslocation YES`）。
   - アプリを操作するときは、このバンドル ID を使ってください（例: `osascript -e 'tell application id "io.github.mtakagi.SevenFourRetro.test" to activate'`）。
   - アプリを直接起動して試さないでください（普段の設定に書き込まれます）。
 - 確認する手順:
@@ -203,6 +205,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - 書き込みの確認・エラーのダイアログは、サーバーのメッセージをスクロールできるテキストで表示します（`SFPostWindowController` の `messageView()`）。5ch の確認ページは利用規約を含んで長いので、`NSAlert` の説明文にすると収まらず、以前はメッセージを 500 文字で切っていました（#66。今の上限は 5000 文字）。
   - 実際の掲示板で書き込みに失敗する場合は、`defaults write io.github.mtakagi.SevenFourRetro DebugPostResponse -bool YES` を設定すると、最後の応答が `~/Library/Logs/SevenFour/LastPostResponse.html` に保存されます（書き込んだ本文も含まれます）。
   - 実際の掲示板に書き込んで試さないでください。ローカルの偽サーバー（確認ページ・Cookie・hidden 値を再現したもの）で確認します。
+- **App Translocation**（#68）: ダウンロードした場所から開いたアプリは、macOS が一時的な場所（`.../AppTranslocation/<UUID>/d/SevenFour.app`）から実行します。実行中にアプリを移動・置き換えるとその場所が外れて落ち（SIGBUS）、Sparkle も更新できません。`SFAppController -applicationDidFinishLaunching:` が、パス（`SFIsTranslocatedPath()`。公開 API がないのでパスで見分ける）で検出して、「アプリケーション」フォルダに移してから開き直すよう案内します。試すときは `SFAssumeAppTranslocation` を YES にして起動します。
 - **アップデート（Sparkle）**（#61）: Sparkle 2 を Swift Package（`project.yml` の `packages`）で組み込んでいます。`SFAppController -applicationWillFinishLaunching:` で `SPUStandardUpdaterController` を作り、アプリのメニューに「アップデートを確認…」を加えます。フィード（`SUFeedURL`）は `https://github.com/mtakagi/SevenFourRetro/releases/latest/download/appcast.xml`、公開鍵は `SUPublicEDKey`（どちらも Info.plist）。自動で確かめるかどうかは、Sparkle が 2 回目の起動で利用者に聞きます。`generate_appcast` などのツールは、パッケージを解決すると `build/SourcePackages/artifacts/sparkle/Sparkle/bin/` に入ります。
 - **アイコンは SF Symbols を使います**（#5）。画像ファイルは追加しないでください。
   - ツールバー: `Japanese.lproj/Toolbar.plist` の各項目の `symbol` キーにシンボル名を書きます（`SFMainWindowController.m` が `+[NSImage imageWithSystemSymbolName:accessibilityDescription:]` で読み込みます）。
