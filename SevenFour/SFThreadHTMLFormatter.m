@@ -6,6 +6,7 @@
 #import "SFAppController.h"
 #import "SFThread.h"
 #import "Ch2Helper.h"
+#import "Ch2Anchor.h"
 #import "Ch2DatParser.h"
 #import "SFThreadFactory.h"
 
@@ -17,7 +18,6 @@ static NSString* FOOTER_TMPL = nil;
 
 static OGRegularExpression* HTML_ANCHOR_PATTERN = nil;
 static OGRegularExpression* HTTP_PATTERN = nil;
-static OGRegularExpression* NUMBER_REPLY_PATTERN = nil;
 
 @implementation SFThreadHTMLFormatter
 + (BOOL) isTextArt: (NSString*) s
@@ -100,13 +100,6 @@ static OGRegularExpression* NUMBER_REPLY_PATTERN = nil;
                                   contextInfo: obj];
 }
 
-+ (NSString*) markupNumberReply: (OGRegularExpressionMatch*) match
-					contextInfo: (id) info
-{
-    NSString* href = [match substringAtIndex: 2];
-    return [NSString stringWithFormat: @"<a href='#%@'>%@%@</a>", href, [match substringAtIndex: 1], [match substringAtIndex: 2]];
-}
-
 + (NSString*) markupHTTPPattern: (OGRegularExpressionMatch*) match
 					contextInfo: (id) info
 {
@@ -123,7 +116,6 @@ static OGRegularExpression* NUMBER_REPLY_PATTERN = nil;
     if (! HTML_ANCHOR_PATTERN) {
         HTML_ANCHOR_PATTERN = [[OGRegularExpression regularExpressionWithString: @"</?[aA][^>]*>"] retain];
         HTTP_PATTERN = [[OGRegularExpression regularExpressionWithString: @"h?t?(tps?://[#-'+-;=?-z~*]+)"] retain];
-        NUMBER_REPLY_PATTERN = [[OGRegularExpression regularExpressionWithString: @"((?:&gt;)+)([0-9,-]+)"] retain];
     }        
     
 	// Delete <a ...> and </a>
@@ -134,12 +126,8 @@ static OGRegularExpression* NUMBER_REPLY_PATTERN = nil;
     tmp = [HTTP_PATTERN replaceAllMatchesInString: tmp
                                        withString: @"<a href='ht\\1'>\\0</a>"];
 	
-	// Markup ">>NUMBER"
-	tmp = [NUMBER_REPLY_PATTERN replaceAllMatchesInString: tmp
-                                                 delegate: self 
-                                          replaceSelector: @selector(markupNumberReply:contextInfo:) 
-                                              contextInfo: nil];
-    return tmp;
+	// Markup ">>NUMBER", also "＞＞NUMBER" and full-width digits (#70)
+	return Ch2MarkupAnchors(tmp);
 }
 
 - (NSString*) formatThread: (SFThread*) th
