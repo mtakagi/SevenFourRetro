@@ -19,6 +19,10 @@
     // Name, mail and body of the post being sent, to tell whether they were
     // edited while it was sent.
     NSString* sentPost_;
+    // The body the window was shown with (e.g. ">>1"), and whether closing
+    // with an unsent body was confirmed (#69).
+    NSString* shownBody_;
+    BOOL closeConfirmed_;
 }
 
 - (id) init;
@@ -28,5 +32,9 @@
 - (NSMutableString*) body;
 
 - (IBAction) post: (id) sender;
+
+// YES when the body has text typed or changed since the window was shown
+// and not sent, which closing the window would lose (#69).
+- (BOOL) hasUnsentText;
 
 @end

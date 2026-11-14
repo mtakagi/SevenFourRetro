@@ -4,6 +4,7 @@
 
 #import "SFDocument.h"
 #import "SFMainWindowController.h"
+#import "SFPostWindowController.h"
 #import "SFThreadHTMLFormatter.h"
 #import "FontButton.h"
 #import "Ch2Board.h"
@@ -263,6 +264,41 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
     [item setTarget: controller];
     // After "SevenFour について".
     [appMenu insertItem: item atIndex: MIN(1, [appMenu numberOfItems])];
+}
+
+// Quitting asks first when a post window has text not yet posted, which
+// quitting would lose (#69).
+- (NSApplicationTerminateReply) applicationShouldTerminate: (NSApplication*) app
+{
+    NSWindow* unsent = nil;
+    for (NSWindow* window in [app windows]) {
+        id controller = [window windowController];
+        // Open windows: on screen or minimized to the Dock. A closed one is
+        // neither.
+        BOOL open = [window isVisible] || [window isMiniaturized];
+        if (open && [controller isKindOfClass: [SFPostWindowController class]]
+            && [controller hasUnsentText]) {
+            unsent = window;
+            break;
+        }
+    }
+    if (! unsent) {
+        return NSTerminateNow;
+    }
+    // Shows the window the text is in, out of the Dock if it was there.
+    if ([unsent isMiniaturized]) {
+        [unsent deminiaturize: nil];
+    }
+    [unsent makeKeyAndOrderFront: nil];
+    NSAlert* alert = [[[NSAlert alloc] init] autorelease];
+    [alert setAlertStyle: NSAlertStyleWarning];
+    [alert setMessageText: NSLocalizedString(@"Quit without posting?", @"")];
+    [alert setInformativeText: NSLocalizedString(@"A post window has text you haven't posted. It will be lost.", @"")];
+    // Cancel first (Escape), as when closing the window: Return quits nothing.
+    [alert addButtonWithTitle: NSLocalizedString(@"Cancel", @"")];
+    NSButton* quit = [alert addButtonWithTitle: NSLocalizedString(@"Quit", @"")];
+    [quit setHasDestructiveAction: YES];
+    return ([alert runModal] == NSAlertSecondButtonReturn) ? NSTerminateNow : NSTerminateCancel;
 }
 
 - (BOOL) application: (NSApplication*) app openFile: (NSString*) path
