@@ -50,14 +50,14 @@ static OGRegularExpression* HTTP_PATTERN = nil;
     return path;
 }
 
-// A template of the skin (retained), or nil.
+// A template of the skin (autoreleased), or nil.
 + (NSString*)loadTemplate:(NSString*)name
 {
     NSString* path = [self pathOfSkinFile:name];
     if (!path) {
         return nil;
     }
-    return [[NSString alloc] initWithContentsOfFile:path usedEncoding:NULL error:NULL];
+    return [NSString stringWithContentsOfFile:path usedEncoding:NULL error:NULL];
 }
 
 + (void)reloadTemplates
@@ -69,10 +69,10 @@ static OGRegularExpression* HTTP_PATTERN = nil;
     [FOOTER_TMPL release];
 
     // The encoding is guessed, so user skins in other encodings still load.
-    HEADER_TMPL = [self loadTemplate:@"Header.html"];
-    TITLE_TMPL = [self loadTemplate:@"Title.html"];
-    NEW_RES_TMPL = [self loadTemplate:@"NewRes.html"];
-    RES_TMPL = [self loadTemplate:@"Res.html"];
+    HEADER_TMPL = [[self loadTemplate:@"Header.html"] retain];
+    TITLE_TMPL = [[self loadTemplate:@"Title.html"] retain];
+    NEW_RES_TMPL = [[self loadTemplate:@"NewRes.html"] retain];
+    RES_TMPL = [[self loadTemplate:@"Res.html"] retain];
 
     FOOTER_TMPL = @"</body></html>";
 }

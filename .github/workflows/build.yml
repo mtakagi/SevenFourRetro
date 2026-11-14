@@ -67,6 +67,20 @@ jobs:
           xcodebuild -project SevenFour.xcodeproj -scheme SevenFour \
             -destination 'platform=macOS' -derivedDataPath build test
 
+      # Clang Static Analyzer (#77): memory management mistakes (leaks,
+      # over-releases, use after dealloc) that MRC code gets past the
+      # compiler. Any finding fails the build, as warnings do.
+      - name: Static analysis
+        run: |
+          set -o pipefail
+          xcodebuild -project SevenFour.xcodeproj -scheme SevenFour \
+            -configuration Debug -destination 'platform=macOS' \
+            -derivedDataPath build analyze 2>&1 | tee "$RUNNER_TEMP/analyze.log"
+          if grep -E ': (warning|error): ' "$RUNNER_TEMP/analyze.log"; then
+            echo "::error::The static analyzer found problems (listed above)"
+            exit 1
+          fi
+
       - name: Archive app
         run: ditto -c -k --keepParent build/Build/Products/Release/SevenFour.app SevenFour.zip
 

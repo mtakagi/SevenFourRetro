@@ -30,9 +30,9 @@
 #pragma mark Override
 - (void)update
 {
-    NSPipe* pipe = [[NSPipe alloc] init];
+    NSPipe* pipe = [NSPipe pipe];
 
-    NSTask* task = [[NSTask alloc] init];
+    NSTask* task = [[[NSTask alloc] init] autorelease];
     [task setStandardOutput:pipe];
     [task setLaunchPath:@"/usr/bin/mdfind"];
 
@@ -41,7 +41,7 @@
     [task waitUntilExit];
 
     NSData* data = [[pipe fileHandleForReading] availableData];
-    NSString* str = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    NSString* str = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] autorelease];
     NSArray* lines = [str componentsSeparatedByString:@"\n"];
 
     [self willChangeValueForKey:@"threads"];

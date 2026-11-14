@@ -108,7 +108,7 @@ NSString* SFTabContentDidChangeNotification = @"SFTabContentDidChangeNotificatio
     }
 
     // Text
-    NSMutableParagraphStyle* style = [[NSMutableParagraphStyle alloc] init];
+    NSMutableParagraphStyle* style = [[[NSMutableParagraphStyle alloc] init] autorelease];
     [style setLineBreakMode:NSLineBreakByTruncatingTail];
     [style setFirstLineHeadIndent:0];
     [style setTailIndent:0];

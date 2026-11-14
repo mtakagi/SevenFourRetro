@@ -204,7 +204,7 @@ static SFMainWindowController* activeController_;
 
     NSLog(@"query = %@", query);
 
-    SFMDBoard* board = [[SFMDBoard alloc] init];
+    SFMDBoard* board = [[[SFMDBoard alloc] init] autorelease];
     [board setQuery:query];
     [board update];
 
