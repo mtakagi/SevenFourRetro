@@ -413,7 +413,7 @@ static NSString* alertMessageFromHTML(NSString* html)
 // "host" or "host:port" of url.
 static NSString* hostAndPort(NSURL* url)
 {
-    return [url port] ? [NSString stringWithFormat:@"%@:%@", [url host], [url port]] : [url host];
+    return [url port] != nil ? [NSString stringWithFormat:@"%@:%@", [url host], [url port]] : [url host];
 }
 
 + (NSURL*)URLOfHTMLWithBoard:(NSURL*)board
@@ -652,9 +652,7 @@ static NSData* completeLines(NSData* data)
 
     NSMutableData* all = [NSMutableData data];
     if (!replacing) {
-        NSData* cached = [delegate_ threadLoadCache:self];
-        [all appendData:cached];
-        [cached release];
+        [all appendData:[delegate_ threadLoadCache:self]];
     }
     [all appendData:data];
     [delegate_ thread:self writeCache:all];
@@ -737,7 +735,6 @@ static NSData* completeLines(NSData* data)
     } else {
         [req setValue:@"gzip" forHTTPHeaderField:@"Accept-Encoding"];
     }
-    [cached release];
 
     // The delegate methods run on the main thread, where the messages and
     // the views using them live. The session keeps the thread alive until it
@@ -785,7 +782,7 @@ static NSData* completeLines(NSData* data)
                                                      options:OgreIgnoreCaseOption];
     NSString* title = nil;
     if ((match = [regex matchInString:content])) {
-        title = [[match substringAtIndex:1] retain];
+        title = [match substringAtIndex:1];
         // NSLog(@"title = %@", title);
     }
     if ([title rangeOfString:POST_SUCCESS].length > 0) {

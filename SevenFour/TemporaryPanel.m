@@ -57,10 +57,9 @@
 
 - (void)dealloc
 {
+    NSLog(@"TemporaryPanel %p - dealloc", self);
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [super dealloc];
-
-    NSLog(@"TemporaryPanel %p - dealloc", self);
 }
 
 - (void)setCloseEvent:(TemporaryPanelCloseEvent)event;

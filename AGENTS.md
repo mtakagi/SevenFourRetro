@@ -71,6 +71,7 @@ lipo -info build/Build/Products/Release/SevenFour.app/Contents/MacOS/SevenFour
 - アプリのバイナリに arm64 と x86_64 の両方が含まれていることの確認
 - 整形の確認（`Tools/format.sh --check`。clang-format 22.1.2 を PyPI から入れる。下の「コーディング上の注意」を参照）
 - オフラインの回帰テスト（`xcodebuild test`。下の「テスト」を参照）
+- Clang Static Analyzer（`xcodebuild analyze`）。指摘が 1 件でもあれば失敗する（下の「コーディング上の注意」を参照）
 - ビルドしたアプリ（`SevenFour.zip`）を Artifact として 7 日間保存
 
 ビルド設定を変えるときは、ローカル（Xcode 27）だけでなく CI の Xcode でも通ることを確認してください。
@@ -171,6 +172,8 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - `objc_msgSend` を直接呼ぶときは、メソッドの型にキャストしてから呼んでください（`Compat/OgreKit/OgreKit.m` を参照）。
   - デリゲートやデータソースにするクラスは、プロトコル（`NSWindowDelegate`、`WKNavigationDelegate` など）を宣言してください。宣言しないと型の警告が出て、メソッドの型の食い違いも見つかりません。
   - ローカルで `ld: warning: search path '...' not found` が出る場合は、シェルの `LIBRARY_PATH` などの環境によるもので、プロジェクトの警告ではありません。
+- **Clang Static Analyzer の指摘もゼロに保ちます**（#77）。MRC のメモリ管理の誤り（リーク、所有していないものの release、`[super dealloc]` のあとの self の使用）は、コンパイラの警告に出ず、Analyzer なら見つかります。CI は `xcodebuild -scheme SevenFour -configuration Debug analyze` を実行し、指摘があれば失敗します。手元でも、コードを変えたら同じコマンドで確かめてください。
+  - 所有権はメソッド名の慣例（`alloc` / `new` / `copy` / `mutableCopy` で始まるものだけが +1 を返す）に従ってください。Analyzer はこの慣例で判断します。たとえば `-threadLoadCache:`（`Ch2ThreadCacheNotification`）は autorelease したものを返します。
 - `.nib` は旧形式のバイナリなので、テキストとして編集できません。UI を変えるときは、コードで変更するか `.xib` への移行を検討してください。
   - 書き込みウインドウ（`SFPostWindowController -makeWindow`）は、`PostWindow.nib` と同じ配置・リサイズの挙動をコードで作っています（#30）。メインウインドウ（`SFMainWindowController+Window.m`、`SFSidePaneController -makeView`）も同じです（#29）。ほかの nib をコードに移すときの参考にしてください。
   - メインウインドウ（#29）: 板一覧は常に左ペイン（3 ペインの分割ビュー `SFThreePaneView` の side view）です。ドロワー（`NSDrawer`）はなくしたので、旧設定の `UseDrawer`・`DrawerEdge`・`DrawerSize` は読みません。環境設定（`MainMenu.nib`）のドロワーの項目は、nib のビューに非表示のビット（`NSvFlags` の 0x80000000）を立てて隠しています。Tab キーの順は、ウインドウが画面上の位置から決めます（`autorecalculatesKeyViewLoop`）。

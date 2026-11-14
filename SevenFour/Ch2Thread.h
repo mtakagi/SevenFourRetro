@@ -118,6 +118,7 @@ extern NSString* Ch2ThreadConnectionDidFailNotification;
 @end
 
 @interface NSObject (Ch2ThreadCacheNotification)
+// The cached DAT, autoreleased (nil: none).
 - (NSData*)threadLoadCache:(Ch2Thread*)t;
 - (void)thread:(Ch2Thread*)t writeCache:(NSData*)data;
 - (NSDate*)threadCacheModificationDate:(Ch2Thread*)t;

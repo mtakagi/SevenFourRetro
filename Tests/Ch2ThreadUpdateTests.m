@@ -27,7 +27,7 @@
 // Like SFThread, returns a retained object; Ch2Thread releases it.
 - (NSData*)threadLoadCache:(Ch2Thread*)t
 {
-    return [[NSData alloc] initWithContentsOfFile:path_];
+    return [NSData dataWithContentsOfFile:path_];
 }
 - (void)thread:(Ch2Thread*)t writeCache:(NSData*)data
 {

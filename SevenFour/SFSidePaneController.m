@@ -173,12 +173,6 @@
     }
 }
 
-- (IBAction)deleteItem:(id)sender
-{
-    id item;
-    item = [outlineView itemAtRow:[outlineView selectedRow]];
-}
-
 - (void)setUpView
 {
     [outlineView setDataSource:self];

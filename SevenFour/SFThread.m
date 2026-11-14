@@ -494,7 +494,7 @@ static QuickLiteDatabase* database_ = nil;
 
 - (NSData*)threadLoadCache:(Ch2Thread*)t
 {
-    return [[NSData alloc] initWithContentsOfFile:[self cachePath]];
+    return [NSData dataWithContentsOfFile:[self cachePath]];
 }
 
 - (void)thread:(Ch2Thread*)th writeCache:(NSData*)data
