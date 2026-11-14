@@ -198,6 +198,7 @@ Tools/run-app-with-test-home.sh               # 一時的な HOME でアプリ�
   - Cookie は自前で `Cookie` ヘッダを組み立てず、共有の `NSHTTPCookieStorage` に任せます。bbs.cgi が書き込み確認ページで発行した Cookie を次の書き込みで送り返す必要があるためです。
   - 確認ページで OK を押したとき（同じ名前・メール・本文での再送）は、確認ページの `<form>`（`action`、hidden の値、送信ボタンの name/value）をブラウザと同じようにそのまま送ります（#12）。値は Shift_JIS で URL エンコードします。
   - それ以外の書き込みでは、スレのページ（read.cgi）のフォームと同じ項目（`FROM`・`mail`・`MESSAGE`・`bbs`・`key`・`time`（現在の UNIX 時刻）・`submit`）だけを送ります。以前の確認ページの hidden の値（`feature` など）は付けません。付けていたころは、一度書き込めたスレに次に書き込むと、確認が何度も繰り返されて書き込めませんでした（#65）。
+  - 書き込みウインドウを閉じるとき（閉じるボタン、⌘W）と、アプリを終了するときに、まだ書き込んでいない本文があれば確認します（#69。`-hasUnsentText`、`-windowShouldClose:`、`SFAppController -applicationShouldTerminate:`）。開いたときの本文（`>>N` など）のままのとき、送信中の本文のままのとき、書き込みが通ってウインドウが閉じるときは確認しません。確認のボタンは「キャンセル」（Escape）と「閉じる」「終了」で、Return では何も起きません。
   - 書き込みの確認・エラーのダイアログは、サーバーのメッセージをスクロールできるテキストで表示します（`SFPostWindowController` の `messageView()`）。5ch の確認ページは利用規約を含んで長いので、`NSAlert` の説明文にすると収まらず、以前はメッセージを 500 文字で切っていました（#66。今の上限は 5000 文字）。
   - 実際の掲示板で書き込みに失敗する場合は、`defaults write io.github.mtakagi.SevenFourRetro DebugPostResponse -bool YES` を設定すると、最後の応答が `~/Library/Logs/SevenFour/LastPostResponse.html` に保存されます（書き込んだ本文も含まれます）。
   - 実際の掲示板に書き込んで試さないでください。ローカルの偽サーバー（確認ページ・Cookie・hidden 値を再現したもの）で確認します。

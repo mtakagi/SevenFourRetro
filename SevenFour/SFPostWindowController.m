@@ -33,7 +33,26 @@ static NSMutableSet* mails_ = NULL;
 {
     // Text put in with -body (e.g. ">>1") has no font of its own.
     [bodyView setFont: [NSFont systemFontOfSize: [NSFont systemFontSize]]];
+    if (! shownBody_) {
+        shownBody_ = [[bodyView string] copy];
+    }
     [super showWindow: sender];
+}
+
+- (BOOL) hasUnsentText
+{
+    NSString* body = [bodyView string];
+    if ([[body stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]] length] == 0) {
+        return NO;
+    }
+    if (shownBody_ && [body isEqualToString: shownBody_]) {
+        return NO;   // only what the window was opened with
+    }
+    // Being sent as it is: closing doesn't stop the post (see -finishPost:).
+    if (sending_ && [[self currentPost] isEqualToString: sentPost_]) {
+        return NO;
+    }
+    return YES;
 }
 
 #pragma mark Action
@@ -341,8 +360,39 @@ static NSComboBox* comboBox(NSRect frame, id dataSource)
 {
     [thread_ release];
     [sentPost_ release];
+    [shownBody_ release];
     
     [super dealloc];
+}
+
+// Closing the window (the close button, ⌘W) asks first when the body would
+// be lost (#69). A window closed in code (after a post went through) isn't
+// asked about.
+- (BOOL) windowShouldClose: (NSWindow*) window
+{
+    if (closeConfirmed_ || ! [self hasUnsentText]) {
+        return YES;
+    }
+    if ([window attachedSheet]) {
+        NSBeep();
+        return NO;
+    }
+    NSAlert* alert = [[[NSAlert alloc] init] autorelease];
+    [alert setAlertStyle: NSAlertStyleWarning];
+    [alert setMessageText: NSLocalizedString(@"Close without posting?", @"")];
+    [alert setInformativeText: NSLocalizedString(@"The text you wrote will be lost.", @"")];
+    // Cancel first: NSAlert gives it Escape and makes no button the
+    // default, so Return doesn't lose the text; Close must be clicked.
+    [alert addButtonWithTitle: NSLocalizedString(@"Cancel", @"")];
+    NSButton* close = [alert addButtonWithTitle: NSLocalizedString(@"Close", @"")];
+    [close setHasDestructiveAction: YES];
+    [alert beginSheetModalForWindow: window completionHandler: ^(NSModalResponse returnCode) {
+        if (returnCode == NSAlertSecondButtonReturn) {
+            closeConfirmed_ = YES;
+            [self close];
+        }
+    }];
+    return NO;
 }
 
 - (void) windowWillClose: (NSNotification*) notification

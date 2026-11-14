@@ -9,3 +9,10 @@
 "Check the updated thread before posting again." = "もう一度書き込む前に、更新したスレッドで書き込まれたかどうか確認してください。";
 "Posted." = "書き込みました。";
 "What was changed while posting has not been posted." = "送信中に変更した内容は、まだ書き込まれていません。";
+"Close without posting?" = "書き込まずに閉じますか？";
+"The text you wrote will be lost." = "書いた本文は失われます。";
+"Close" = "閉じる";
+"Cancel" = "キャンセル";
+"Quit without posting?" = "書き込まずに終了しますか？";
+"A post window has text you haven't posted. It will be lost." = "まだ書き込んでいない本文のある書き込みウインドウがあります。終了すると、その本文は失われます。";
+"Quit" = "終了";
