@@ -273,7 +273,10 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
     NSWindow* unsent = nil;
     for (NSWindow* window in [app windows]) {
         id controller = [window windowController];
-        if ([window isVisible] && [controller isKindOfClass: [SFPostWindowController class]]
+        // Open windows: on screen or minimized to the Dock. A closed one is
+        // neither.
+        BOOL open = [window isVisible] || [window isMiniaturized];
+        if (open && [controller isKindOfClass: [SFPostWindowController class]]
             && [controller hasUnsentText]) {
             unsent = window;
             break;
@@ -281,6 +284,10 @@ NSString* SF_SUPPORT_DIRECTORY = NULL;
     }
     if (! unsent) {
         return NSTerminateNow;
+    }
+    // Shows the window the text is in, out of the Dock if it was there.
+    if ([unsent isMiniaturized]) {
+        [unsent deminiaturize: nil];
     }
     [unsent makeKeyAndOrderFront: nil];
     NSAlert* alert = [[[NSAlert alloc] init] autorelease];
