@@ -12,39 +12,39 @@ extern NSString* Ch2BoardDidFinishParsingNotification;
     NSMutableData* receivedData_;
     NSURLSession* session_;
     BOOL failedStatus_;
-    
+
     long long contentLength_;
     float estimatedProgress_;
     NSString* userAgent_;
-	
-	id delegate_;
+
+    id delegate_;
 }
 
-- (id) init;
-- (void) dealloc;
+- (id)init;
+- (void)dealloc;
 
-- (id) initWithURL: url;
+- (id)initWithURL:url;
 
-- (NSURL*) URL;
-- (NSDictionary*) subjectAtIndex: (unsigned) index;
-- (unsigned) count;
-- (float) estimatedProgress;
+- (NSURL*)URL;
+- (NSDictionary*)subjectAtIndex:(unsigned)index;
+- (unsigned)count;
+- (float)estimatedProgress;
 
-- (NSString*) userAgent;
-- (void) setUserAgent: (NSString*) name;
+- (NSString*)userAgent;
+- (void)setUserAgent:(NSString*)name;
 
 // Starts loading subject.txt in the background. When it is over (loaded,
 // failed or an HTTP error), Ch2BoardDidFinishParsingNotification is posted
 // on the main thread.
-- (void) update;
+- (void)update;
 // Stops the current update without posting any notification.
-- (void) cancel;
-- (BOOL) isUpdating;
+- (void)cancel;
+- (BOOL)isUpdating;
 
-- (void) setDelegate: (id) delagate;
-- (id) delegate;
+- (void)setDelegate:(id)delagate;
+- (id)delegate;
 @end
 
 @interface NSObject (Ch2BoardDelegate)
-- (void) board: (Ch2Board*) board didFailWithError: (NSError*) err;
+- (void)board:(Ch2Board*)board didFailWithError:(NSError*)err;
 @end

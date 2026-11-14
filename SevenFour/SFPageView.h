@@ -10,15 +10,15 @@
 // A link was followed or a page is about to load. YES loads url in the
 // view; NO means the owner handled it (opened a thread, a post window, the
 // browser...). inBackground is YES when Command was held.
-- (BOOL) pageView: (SFPageView*) view
-    shouldLoadURL: (NSURL*) url
-     inBackground: (BOOL) inBackground;
+- (BOOL)pageView:(SFPageView*)view
+    shouldLoadURL:(NSURL*)url
+     inBackground:(BOOL)inBackground;
 // The mouse moved onto a link (url) or off links (nil). option is YES when
 // Option was held.
-- (void) pageView: (SFPageView*) view
-     mouseOverURL: (NSURL*) url
-            label: (NSString*) label
-           option: (BOOL) option;
+- (void)pageView:(SFPageView*)view
+    mouseOverURL:(NSURL*)url
+           label:(NSString*)label
+          option:(BOOL)option;
 @end
 
 // Posted by an SFPageView made with reportsContentHeight when the height of
@@ -33,19 +33,19 @@ extern NSString* const SFPageViewContentHeightKey;
 // no API for the latter, so a user script reports it. See
 // docs/wkwebview-migration.md.
 @interface SFPageView : WKWebView <WKNavigationDelegate, WKUIDelegate> {
-    id pageDelegate_;     // not retained (the owner outlives the view)
-    id messageHandler_;   // receives the user scripts' messages
+    id pageDelegate_;   // not retained (the owner outlives the view)
+    id messageHandler_; // receives the user scripts' messages
 }
 
-- (id) initWithFrame: (NSRect) frame;
+- (id)initWithFrame:(NSRect)frame;
 // reportsContentHeight: post SFPageViewContentHeightDidChangeNotification.
-- (id) initWithFrame: (NSRect) frame reportsContentHeight: (BOOL) reports;
+- (id)initWithFrame:(NSRect)frame reportsContentHeight:(BOOL)reports;
 
-- (void) setPageDelegate: (id) delegate;
-- (id) pageDelegate;
+- (void)setPageDelegate:(id)delegate;
+- (id)pageDelegate;
 
 // Finds string in the page and selects it, searching forward or backward
 // from the selection, without wrapping around (case-insensitive).
-- (void) findString: (NSString*) string forward: (BOOL) forward;
+- (void)findString:(NSString*)string forward:(BOOL)forward;
 
 @end

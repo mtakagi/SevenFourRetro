@@ -14,6 +14,5 @@ extern NSString* Ch2MessageThreadSubject;
 @interface Ch2DatParser : NSObject {
 }
 
-+ (NSArray*) parseData: (NSData*) data;
++ (NSArray*)parseData:(NSData*)data;
 @end
-

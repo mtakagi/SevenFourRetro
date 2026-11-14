@@ -3,7 +3,7 @@
 #import <Cocoa/Cocoa.h>
 
 @interface RatingCell : NSActionCell {
-	NSPoint start_;
+    NSPoint start_;
 }
 
 @end

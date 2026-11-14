@@ -9,13 +9,13 @@
 
 @implementation SFAppTranslocationTests
 
-- (void) testTranslocatedPath
+- (void)testTranslocatedPath
 {
     XCTAssertTrue(SFIsTranslocatedPath(
         @"/private/var/folders/ab/cdefgh1234567/T/AppTranslocation/0A1B2C3D-4E5F-6789-ABCD-EF0123456789/d/SevenFour.app"));
 }
 
-- (void) testOtherPaths
+- (void)testOtherPaths
 {
     XCTAssertFalse(SFIsTranslocatedPath(@"/Applications/SevenFour.app"));
     XCTAssertFalse(SFIsTranslocatedPath(@"/Users/someone/Downloads/SevenFour.app"));

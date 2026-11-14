@@ -14,6 +14,6 @@
     NSMutableArray* pending_;
 }
 
-+ (SFThreadSchemeHandler*) sharedHandler;
++ (SFThreadSchemeHandler*)sharedHandler;
 
 @end

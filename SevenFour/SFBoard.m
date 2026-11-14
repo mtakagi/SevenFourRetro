@@ -6,44 +6,44 @@ NSString* SFBoardDidFinishUpdatingNotification = @"SFBoardDidFinishUpdatingNotif
 
 @implementation SFBoard
 
-- (NSString*) title
+- (NSString*)title
 {
-	return title_;
+    return title_;
 }
 
-- (void) setTitle: (NSString*) title
+- (void)setTitle:(NSString*)title
 {
-	title_ = [title retain];
+    title_ = [title retain];
 }
 
-- (NSArray*) threads;
+- (NSArray*)threads;
 {
-	return nil;
+    return nil;
 }
 
-- (NSURL*) URL
+- (NSURL*)URL
 {
-	return nil;
+    return nil;
 }
 
-- (void) update
+- (void)update
 {
-	;
+    ;
 }
 
-- (id) init
+- (id)init
 {
-	self = [super init];
-	
-	title_ = nil;
-	
-	return self;
+    self = [super init];
+
+    title_ = nil;
+
+    return self;
 }
 
-- (void) dealloc
+- (void)dealloc
 {
-	[[NSNotificationCenter defaultCenter] removeObserver: self];
-	[super dealloc];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [super dealloc];
 }
 
 @end

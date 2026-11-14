@@ -4,19 +4,19 @@
 
 @implementation WhiteFormatter
 
-- (void) setMinValue: (int) min
+- (void)setMinValue:(int)min
 {
     min_ = min;
 }
 
 #pragma mark Override
-- (NSString*) stringForObjectValue: (id) obj
+- (NSString*)stringForObjectValue:(id)obj
 {
     if ([obj intValue] <= min_) {
         return @"";
     }
-    
-    return [NSString stringWithFormat: @"%d", [obj intValue]];
+
+    return [NSString stringWithFormat:@"%d", [obj intValue]];
 }
 
 @end

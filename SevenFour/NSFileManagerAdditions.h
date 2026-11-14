@@ -2,8 +2,8 @@
 
 #import <Cocoa/Cocoa.h>
 
-@interface NSFileManager(NSFileManagerCreateDirectoryRecursive)
-- (BOOL) createDirectoryAtPath: (NSString*) path
-                    attributes: (NSDictionary*) attrs
-                     recursive: (BOOL) recursive;
+@interface NSFileManager (NSFileManagerCreateDirectoryRecursive)
+- (BOOL)createDirectoryAtPath:(NSString*)path
+                   attributes:(NSDictionary*)attrs
+                    recursive:(BOOL)recursive;
 @end

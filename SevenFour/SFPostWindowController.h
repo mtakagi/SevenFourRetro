@@ -10,7 +10,7 @@
     NSComboBox* mailBox;
     NSTextView* bodyView;
     NSProgressIndicator* indicator;
-    
+
     SFThread* thread_;
     // The post button, disabled while a post is being sent.
     NSButton* postButton_;
@@ -25,16 +25,16 @@
     BOOL closeConfirmed_;
 }
 
-- (id) init;
+- (id)init;
 
-- (void) setThread: (SFThread*) th;
-- (SFThread*) thread;
-- (NSMutableString*) body;
+- (void)setThread:(SFThread*)th;
+- (SFThread*)thread;
+- (NSMutableString*)body;
 
-- (IBAction) post: (id) sender;
+- (IBAction)post:(id)sender;
 
 // YES when the body has text typed or changed since the window was shown
 // and not sent, which closing the window would lose (#69).
-- (BOOL) hasUnsentText;
+- (BOOL)hasUnsentText;
 
 @end

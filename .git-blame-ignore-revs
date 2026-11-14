@@ -1,0 +1,6 @@
+# Commits that only reformat the code, for git blame to skip:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub skips them on its own.
+
+# Format the sources with clang-format (#71)
+0e6409a9aaca8334ea9a87f14c96bdb1e56463e1

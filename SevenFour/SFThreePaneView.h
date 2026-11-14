@@ -12,8 +12,8 @@
 // redistribution weren't stated. The sizes the user leaves are kept by
 // NSSplitView's autosave; the sizes the old view saved are taken over once.
 @interface SFThreePaneView : NSView <NSSplitViewDelegate> {
-    NSSplitView* outer_;   // side | main
-    NSSplitView* inner_;   // top / bottom
+    NSSplitView* outer_; // side | main
+    NSSplitView* inner_; // top / bottom
     NSView* sideView_;
     NSView* topView_;
     NSView* bottomView_;
@@ -23,25 +23,25 @@
     CGFloat bottomPosition_;
 }
 
-- (void) setSideView: (NSView*) view;
-- (void) setTopView: (NSView*) view;
-- (void) setBottomView: (NSView*) view;
+- (void)setSideView:(NSView*)view;
+- (void)setTopView:(NSView*)view;
+- (void)setBottomView:(NSView*)view;
 
 // YES: the top and bottom views side by side (the SplitVertical setting).
-- (void) setVertical: (BOOL) flag;
+- (void)setVertical:(BOOL)flag;
 
 // Saves the sizes of the panes under name and restores them. Call it after
 // the views are set.
-- (void) setAutosaveName: (NSString*) name;
+- (void)setAutosaveName:(NSString*)name;
 
-- (BOOL) isSideViewVisible;
-- (void) showSideView: (BOOL) flag;
-- (IBAction) toggleSideView: (id) sender;
+- (BOOL)isSideViewVisible;
+- (void)showSideView:(BOOL)flag;
+- (IBAction)toggleSideView:(id)sender;
 
 // Hiding the bottom view gives the main area to the top view (the 2-pane
 // view of a board: the thread list only).
-- (BOOL) isBottomViewVisible;
-- (void) showBottomView: (BOOL) flag;
-- (IBAction) toggleBottomView: (id) sender;
+- (BOOL)isBottomViewVisible;
+- (void)showBottomView:(BOOL)flag;
+- (IBAction)toggleBottomView:(id)sender;
 
 @end

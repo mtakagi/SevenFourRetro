@@ -8,12 +8,12 @@
     NSMutableDictionary* pool_;
 }
 
-+ (SFThreadFactory*) sharedFactory;
++ (SFThreadFactory*)sharedFactory;
 
-- (SFThread*) threadWithBoard: (NSURL*) board
-                       number: (int) number;
-- (SFThread*) threadWithURL: (NSURL*) url;
-- (void) garbageCollect;
-- (void) saveAllMetadata;
+- (SFThread*)threadWithBoard:(NSURL*)board
+                      number:(int)number;
+- (SFThread*)threadWithURL:(NSURL*)url;
+- (void)garbageCollect;
+- (void)saveAllMetadata;
 
 @end

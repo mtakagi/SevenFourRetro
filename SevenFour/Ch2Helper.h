@@ -4,10 +4,9 @@
 
 
 @interface Ch2Helper : NSObject {
-
 }
 
-+ (NSArray*) parseRangeString: (NSString*) str
-				   lastNumber: (int) last;
++ (NSArray*)parseRangeString:(NSString*)str
+                  lastNumber:(int)last;
 
 @end

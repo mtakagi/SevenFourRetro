@@ -19,116 +19,117 @@ static QuickLiteDatabase* database_ = nil;
 
 @implementation SFThread
 
-+ (void) createTable
++ (void)createTable
 {
     NSLog(@"SFDocument + createTable");
-    
+
     // Create Table
     // FIXME: Need to change column names...
     NSArray* columns = [NSArray arrayWithObjects:
-        QLRecordUID, 
-        @"number",  // -> index
-        @"subject", 
-        @"dat",     // -> number
+            QLRecordUID,
+        @"number", // -> index
+        @"subject",
+        @"dat", // -> number
         @"board",
         @"count", @"local", @"rate",
-        @"live", @"new", @"comment", 
-        @"scroll", 
-        @"atime",  // -> visitedTime ?
+        @"live", @"new", @"comment",
+        @"scroll",
+        @"atime", // -> visitedTime ?
         nil];
     NSArray* columnTypes = [NSArray arrayWithObjects:
-        QLRecordUIDDatatype, 
+            QLRecordUIDDatatype,
         QLNumber, QLString, QLNumber,
-        QLString, 
+        QLString,
         QLNumber, QLNumber, QLNumber,
         QLBoolean, QLBoolean, QLString,
         QLNumber, QLDateTime, nil];
-    
-    [database_ createTable: @"threads"
-               withColumns: columns andDatatypes: columnTypes];  
-    
+
+    [database_ createTable:@"threads"
+               withColumns:columns
+              andDatatypes:columnTypes];
+
     // Create Index
-    [database_ performQuery: 
-        @"CREATE UNIQUE INDEX IF NOT EXISTS threads_index ON threads (board, dat);"];
+    [database_ performQuery:
+            @"CREATE UNIQUE INDEX IF NOT EXISTS threads_index ON threads (board, dat);"];
 }
 
-+ (void) openDatabase
++ (void)openDatabase
 {
     NSFileManager* fm = [NSFileManager defaultManager];
     NSString* path;
-    
-    path = [NSString stringWithFormat: @"%@/Index.db", SF_SUPPORT_DIRECTORY];
-    BOOL found = [fm fileExistsAtPath: path];
-    
-    database_ = [[QuickLiteDatabase alloc] initWithFile: path];
-    [database_ open: YES];        
-    
-    if (! found) {
+
+    path = [NSString stringWithFormat:@"%@/Index.db", SF_SUPPORT_DIRECTORY];
+    BOOL found = [fm fileExistsAtPath:path];
+
+    database_ = [[QuickLiteDatabase alloc] initWithFile:path];
+    [database_ open:YES];
+
+    if (!found) {
         [self createTable];
-    }    
+    }
 }
 
-+ (QuickLiteDatabase*) sharedDatabase
++ (QuickLiteDatabase*)sharedDatabase
 {
-    if (! database_) {
+    if (!database_) {
         [self openDatabase];
     }
-    
+
     return database_;
 }
 
-- (void) setOffline: (BOOL) flag
+- (void)setOffline:(BOOL)flag
 {
-	offline_ = flag;
+    offline_ = flag;
 }
 
-- (BOOL) offline
+- (BOOL)offline
 {
-	return offline_;
+    return offline_;
 }
 
-- (BOOL) isEqualToThread: (SFThread*) th
+- (BOOL)isEqualToThread:(SFThread*)th
 {
     NSString* a = [[self URLOfDat] absoluteString];
-    NSString* b = [[th   URLOfDat] absoluteString];
-    
-    return [a isEqualToString: b];
+    NSString* b = [[th URLOfDat] absoluteString];
+
+    return [a isEqualToString:b];
 }
 
-- (NSString*) cachePath
+- (NSString*)cachePath
 {
 #ifdef COMPAT
     NSString* path;
-    
-    path = [NSString stringWithFormat: @"%@/Thread/%@/%@/%d.dat", 
+
+    path = [NSString stringWithFormat:@"%@/Thread/%@/%@/%d.dat",
         SF_SUPPORT_DIRECTORY, [board_ host], [board_ path], number_];
-    
+
     return [path stringByStandardizingPath];
 #else
     NSString* path;
-	NSMutableString* host = [NSMutableString stringWithString: [board_ host]];
-	
-	[host replaceOccurrencesOfRegularExpressionString: @"^.+?\\."
-										   withString: @"" 
-                                            options: 0
-                                              range: NSMakeRange(0, [host length])];	
-	
-    path = [NSString stringWithFormat: @"%@/Thread/%@/%@/%d.dat", 
+    NSMutableString* host = [NSMutableString stringWithString:[board_ host]];
+
+    [host replaceOccurrencesOfRegularExpressionString:@"^.+?\\."
+                                           withString:@""
+                                              options:0
+                                                range:NSMakeRange(0, [host length])];
+
+    path = [NSString stringWithFormat:@"%@/Thread/%@/%@/%d.dat",
         SF_SUPPORT_DIRECTORY, host, [board_ path], number_];
-    
+
     return [path stringByStandardizingPath];
 #endif
 }
 
-- (void) removeCache
+- (void)removeCache
 {
-	// Flag
-	cacheDeleted_ = YES;
-	
+    // Flag
+    cacheDeleted_ = YES;
+
     // Remove file
     NSFileManager* manager = [NSFileManager defaultManager];
-    [manager removeItemAtPath: [self cachePath] error: NULL];
-	
+    [manager removeItemAtPath:[self cachePath] error:NULL];
+
     // Clear metadata
     local_ = 0;
 
@@ -136,204 +137,204 @@ static QuickLiteDatabase* database_ = nil;
 }
 
 // local, rate, scroll
-- (void) loadLightMetadata
+- (void)loadLightMetadata
 {
     NSString* query;
     // FIXME
     query = [NSString stringWithFormat:
-        @"SELECT subject, local, rate, scroll FROM threads WHERE board = '%@' AND dat = %d",
+            @"SELECT subject, local, rate, scroll FROM threads WHERE board = '%@' AND dat = %d",
         [board_ absoluteString], number_];
-    
+
     QuickLiteDatabase* db = [[self class] sharedDatabase];
-    QuickLiteCursor* cursor = [db performQuery: query];
-    
+    QuickLiteCursor* cursor = [db performQuery:query];
+
     if ([cursor rowCount] == 0) {
         query = [NSString stringWithFormat:
-            @"INSERT OR IGNORE INTO threads (dat, board, subject, count, number) VALUES (%d, '%@', '%@', %d, %d)",
+                @"INSERT OR IGNORE INTO threads (dat, board, subject, count, number) VALUES (%d, '%@', '%@', %d, %d)",
             number_, [board_ absoluteString],
-            [QuickLiteDatabase prepareStringForQuery: subject_],
+            [QuickLiteDatabase prepareStringForQuery:subject_],
             count_, number_];
-        [db performQuery: query];		
-        
-		isNew_ = YES;
+        [db performQuery:query];
+
+        isNew_ = YES;
         local_ = 0;
         rate_ = 0;
         comment_ = [[NSMutableString alloc] init];
     } else {
-		isNew_ = NO;
-		
-        QuickLiteRow* row = [cursor rowAtIndex: 0];
-        
+        isNew_ = NO;
+
+        QuickLiteRow* row = [cursor rowAtIndex:0];
+
         id value;
-        
-        value = [row valueForColumn: @"threads.local"];
+
+        value = [row valueForColumn:@"threads.local"];
         if (value != [NSNull null]) {
             local_ = [value intValue];
         }
-        
-        value = [row valueForColumn: @"threads.rate"];
+
+        value = [row valueForColumn:@"threads.rate"];
         if (value != [NSNull null]) {
             rate_ = [value intValue];
         }
-        
-        [self setSubject: [row valueForColumn: @"threads.subject"]];
+
+        [self setSubject:[row valueForColumn:@"threads.subject"]];
     }
 }
 
 // Load local, rate, subject, number, count
-- (void) loadMetadata
+- (void)loadMetadata
 {
     NSString* query;
 
     query = [NSString stringWithFormat:
-        @"SELECT * FROM threads WHERE board = '%@' AND dat = %d",
+            @"SELECT * FROM threads WHERE board = '%@' AND dat = %d",
         [board_ absoluteString], number_];
-    
+
     QuickLiteDatabase* db = [[self class] sharedDatabase];
-    QuickLiteCursor* cursor = [db performQuery: query];
-    
+    QuickLiteCursor* cursor = [db performQuery:query];
+
     if ([cursor rowCount] != 1) {
         return;
     }
-    QuickLiteRow* row = [cursor rowAtIndex: 0];
-    
+    QuickLiteRow* row = [cursor rowAtIndex:0];
+
     id value;
     // NSLog(@"row = %@", row);
-    
-    value = [row valueForColumn: @"threads.local"];
+
+    value = [row valueForColumn:@"threads.local"];
     if (value != [NSNull null]) {
         local_ = [value intValue];
     }
-    
-    value = [row valueForColumn: @"threads.rate"];
+
+    value = [row valueForColumn:@"threads.rate"];
     if (value != [NSNull null]) {
         rate_ = [value intValue];
     }
-    
-    [self setSubject: [row valueForColumn: @"threads.subject"]];
-    
+
+    [self setSubject:[row valueForColumn:@"threads.subject"]];
+
 #if 0
     value = [row valueForColumn: @"threads.number"];
     if (value != [NSNull null]) {
         [self setIndex: [value intValue]];
     }
 #endif
-    
-    value = [row valueForColumn: @"threads.count"];
+
+    value = [row valueForColumn:@"threads.count"];
     if (value != [NSNull null]) {
-        [self setCount: [value intValue]];
+        [self setCount:[value intValue]];
     }
-    
+
     [comment_ release];
-    comment_ = [[row stringForColumn: @"threads.comment"] retain];
+    comment_ = [[row stringForColumn:@"threads.comment"] retain];
 }
 
-- (void) saveMetadata
+- (void)saveMetadata
 {
-	// NSLog(@"SFThread - saveMetadata");
-	
+    // NSLog(@"SFThread - saveMetadata");
+
     NSString* query;
     query = [NSString stringWithFormat:
-        @"SELECT * FROM threads WHERE board = '%@' AND dat = %d",
+            @"SELECT * FROM threads WHERE board = '%@' AND dat = %d",
         [board_ absoluteString], number_];
-    
+
     QuickLiteDatabase* db = [[self class] sharedDatabase];
-    QuickLiteCursor* cursor = [db performQuery: query];
-	
-	if ([cursor rowCount] != 1) {
-		return;
-	}
-	
-	[cursor setValue: subject_
-		   forColumn: @"threads.subject"];
-	
-	[cursor setValue: [NSNumber numberWithInt: local_] forColumn: @"threads.local"];
-	[cursor setValue: [NSNumber numberWithInt: rate_ ] forColumn: @"threads.rate"];
-	[cursor setValue: [NSNumber numberWithInt: count_] forColumn: @"threads.count"];
-	[cursor setValue: [NSNumber numberWithInt: index_] forColumn: @"threads.number"];
-	
-	if (visitedTime_) {
-		[cursor setValue: visitedTime_ forColumn: @"threads.atime"];
-	}
-	
-	[cursor save];
+    QuickLiteCursor* cursor = [db performQuery:query];
+
+    if ([cursor rowCount] != 1) {
+        return;
+    }
+
+    [cursor setValue:subject_
+           forColumn:@"threads.subject"];
+
+    [cursor setValue:[NSNumber numberWithInt:local_] forColumn:@"threads.local"];
+    [cursor setValue:[NSNumber numberWithInt:rate_] forColumn:@"threads.rate"];
+    [cursor setValue:[NSNumber numberWithInt:count_] forColumn:@"threads.count"];
+    [cursor setValue:[NSNumber numberWithInt:index_] forColumn:@"threads.number"];
+
+    if (visitedTime_) {
+        [cursor setValue:visitedTime_ forColumn:@"threads.atime"];
+    }
+
+    [cursor save];
 }
 
-- (id) initWithNumber: (int) number
-				board: (NSURL*) board
+- (id)initWithNumber:(int)number
+               board:(NSURL*)board
 {
     self = [self init];
-    
+
     number_ = number;
     board_ = [board retain];
-    
+
     [self loadLightMetadata];
-    
+
     return self;
 }
 
-- (BOOL) isNew
+- (BOOL)isNew
 {
-	return isNew_;
+    return isNew_;
 }
 
-- (int) index
+- (int)index
 {
     return index_;
 }
 
-- (void) setIndex: (int) index
+- (void)setIndex:(int)index
 {
     index_ = index;
 }
 
-- (NSString*) subject
+- (NSString*)subject
 {
     return subject_;
 }
 
-- (void) setSubject: (NSString*) s
-{	
+- (void)setSubject:(NSString*)s
+{
     [subject_ release];
     subject_ = [s retain];
 }
 
-- (int) count
+- (int)count
 {
     return count_;
 }
 
-- (void) setCount: (int) count
+- (void)setCount:(int)count
 {
     count_ = count;
 }
 
-- (int) number
+- (int)number
 {
     return number_;
 }
 
-- (NSDate*) creationDate
+- (NSDate*)creationDate
 {
-	return [NSDate dateWithTimeIntervalSince1970: [self number]];
+    return [NSDate dateWithTimeIntervalSince1970:[self number]];
 }
 
-- (float) pace
+- (float)pace
 {
-	float interval = [[self creationDate] timeIntervalSinceNow] / (60.0 * 60.0);
-	if (interval != 0) {
-		return [self count] / -interval;
-	} else {
-		return 0;
-	}
+    float interval = [[self creationDate] timeIntervalSinceNow] / (60.0 * 60.0);
+    if (interval != 0) {
+        return [self count] / -interval;
+    } else {
+        return 0;
+    }
 }
 
-- (int) local
+- (int)local
 {
     return local_;
 }
 
-- (int) delta
+- (int)delta
 {
     if ([self local] == 0)
         return -1;
@@ -341,22 +342,22 @@ static QuickLiteDatabase* database_ = nil;
         return [self count] - [self local];
 }
 
-- (void) setRate: (int) rate
-{	
-	if (rate_ > 5) {
-		rate_ = 5;
-	} else {
-		rate_ = rate;
-	}
+- (void)setRate:(int)rate
+{
+    if (rate_ > 5) {
+        rate_ = 5;
+    } else {
+        rate_ = rate;
+    }
     [self saveMetadata];
 }
 
-- (int) rate
+- (int)rate
 {
     return rate_;
 }
 
-- (int) newCount
+- (int)newCount
 {
     if (thread_) {
         return [thread_ newCount];
@@ -365,138 +366,138 @@ static QuickLiteDatabase* database_ = nil;
     }
 }
 
-- (NSURL*) URLOfBoard
+- (NSURL*)URLOfBoard
 {
     return board_;
 }
 
-- (NSURL*) URLOfHTML
+- (NSURL*)URLOfHTML
 {
-    return [Ch2Thread URLOfHTMLWithBoard: board_ number: number_];
+    return [Ch2Thread URLOfHTMLWithBoard:board_ number:number_];
 }
 
-- (NSURL*) URLOfDat
+- (NSURL*)URLOfDat
 {
-    return [Ch2Thread URLOfDatWithBoard: board_ number: number_];
+    return [Ch2Thread URLOfDatWithBoard:board_ number:number_];
 }
 
-- (int) countOfID: (NSString*) key
+- (int)countOfID:(NSString*)key
 {
-    NSNumber* number = [idCounts_ objectForKey: key];
+    NSNumber* number = [idCounts_ objectForKey:key];
     return [number intValue];
 }
 
-- (void) countAllIDs
+- (void)countAllIDs
 {
     [idCounts_ removeAllObjects];
 
     int i;
     for (i = 0; i < [self count]; i++) {
-        NSDictionary* message = [self messageAtIndex: i];
-        NSString* s = [message objectForKey: Ch2MessageID];
-        if (s && ! [s isEqualTo: @"???"]) {            
-            int n = [[idCounts_ objectForKey: s] intValue];
-            [idCounts_ setObject: [NSNumber numberWithInt: n + 1]
-                          forKey: s];
+        NSDictionary* message = [self messageAtIndex:i];
+        NSString* s = [message objectForKey:Ch2MessageID];
+        if (s && ![s isEqualTo:@"???"]) {
+            int n = [[idCounts_ objectForKey:s] intValue];
+            [idCounts_ setObject:[NSNumber numberWithInt:n + 1]
+                          forKey:s];
         }
     }
 }
 
-- (void) threadFinishUpdating: (NSNotification*) n
-{    
-	DEBUG_LOG(@"SFThread %p - threadFinishUpdating:", self);
-	
-	[self setSubject: [thread_ subject]];
-	    
+- (void)threadFinishUpdating:(NSNotification*)n
+{
+    DEBUG_LOG(@"SFThread %p - threadFinishUpdating:", self);
+
+    [self setSubject:[thread_ subject]];
+
     count_ = [thread_ count];
     local_ = count_;
-	
+
     [self saveMetadata];
-	
+
     [self countAllIDs];
 
     [[NSNotificationCenter defaultCenter]
-        postNotificationName: SFThreadDidFinishUpdatingNotification
-                      object: self
-                    userInfo: nil];
-	
+        postNotificationName:SFThreadDidFinishUpdatingNotification
+                      object:self
+                    userInfo:nil];
+
     // [thread_ setDelegate: nil];
 }
 
 // Create the underlying Ch2Thread on demand. It used to be created only by
 // -update, so posting to a thread that had not been updated yet messaged nil
 // and silently reported success.
-- (void) prepareCh2Thread
+- (void)prepareCh2Thread
 {
-	if (cacheDeleted_) {
-		// An update still running would write the deleted log back.
-		[thread_ cancel];
-		[thread_ release];
-		thread_ = nil;
-		cacheDeleted_ = NO;
-	}
+    if (cacheDeleted_) {
+        // An update still running would write the deleted log back.
+        [thread_ cancel];
+        [thread_ release];
+        thread_ = nil;
+        cacheDeleted_ = NO;
+    }
 
     if (thread_ == nil) {
-        thread_ = [[Ch2Thread alloc] initWithNumber: number_ board: board_];
-		[thread_ setUserAgent: SEVENFOUR_USER_AGENT];
-		
+        thread_ = [[Ch2Thread alloc] initWithNumber:number_ board:board_];
+        [thread_ setUserAgent:SEVENFOUR_USER_AGENT];
+
         NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
-        [center addObserver: self
-                   selector: @selector(threadFinishUpdating:)
-                       name: Ch2ThreadDidFinishUpdatingNotification
-                     object: thread_];
-        [center addObserver: self
-                   selector: @selector(threadFinishUpdating:)
-                       name: Ch2ThreadConnectionDidFailNotification
-                     object: thread_];
-		
-		[thread_ setDelegate: self];
-		DEBUG_LOG(@"SFThread %p - [thread_ count] = %d", self, [thread_ count]);
+        [center addObserver:self
+                   selector:@selector(threadFinishUpdating:)
+                       name:Ch2ThreadDidFinishUpdatingNotification
+                     object:thread_];
+        [center addObserver:self
+                   selector:@selector(threadFinishUpdating:)
+                       name:Ch2ThreadConnectionDidFailNotification
+                     object:thread_];
+
+        [thread_ setDelegate:self];
+        DEBUG_LOG(@"SFThread %p - [thread_ count] = %d", self, [thread_ count]);
     }
 }
 
-- (void) update
+- (void)update
 {
-	DEBUG_LOG(@"SFThread %p - update", self);
+    DEBUG_LOG(@"SFThread %p - update", self);
 
-	[self prepareCh2Thread];
+    [self prepareCh2Thread];
 
-#if  1
-	if (! offline_) {
-		[thread_ update];
-	} else {
-		[self threadFinishUpdating: nil];
-	}
+#if 1
+    if (!offline_) {
+        [thread_ update];
+    } else {
+        [self threadFinishUpdating:nil];
+    }
 #else
-	if ([thread_ count] >= 1000) {
-		offline_ = YES;
-	}
+    if ([thread_ count] >= 1000) {
+        offline_ = YES;
+    }
 
-	if (! offline_) {
-		[thread_ update];
-	} else {
-		[self threadFinishUpdating: nil];
-	}
+    if (!offline_) {
+        [thread_ update];
+    } else {
+        [self threadFinishUpdating:nil];
+    }
 #endif
-	
-	[visitedTime_ release];
-	visitedTime_ = [[NSDate date] retain];
+
+    [visitedTime_ release];
+    visitedTime_ = [[NSDate date] retain];
 }
 
-- (NSDictionary*) messageAtIndex: (int) index
+- (NSDictionary*)messageAtIndex:(int)index
 {
     if (0 <= index && index < [self count])
-        return [thread_ messageAtIndex: index];
+        return [thread_ messageAtIndex:index];
     else
         return nil;
 }
 
-- (NSData*) threadLoadCache: (Ch2Thread*) t
+- (NSData*)threadLoadCache:(Ch2Thread*)t
 {
-    return [[NSData alloc] initWithContentsOfFile: [self cachePath]];
+    return [[NSData alloc] initWithContentsOfFile:[self cachePath]];
 }
 
-- (void) thread: (Ch2Thread*) th writeCache: (NSData*) data
+- (void)thread:(Ch2Thread*)th writeCache:(NSData*)data
 {
     // The log was deleted while this update was running: don't bring it back.
     if (cacheDeleted_) {
@@ -504,55 +505,55 @@ static QuickLiteDatabase* database_ = nil;
     }
     NSFileManager* manager;
     manager = [NSFileManager defaultManager];
-    [manager createDirectoryAtPath: [[self cachePath] stringByDeletingLastPathComponent]
-                        attributes: nil
-                         recursive: true];
-    
-    if (! [data writeToFile: [self cachePath] atomically: YES]) {
+    [manager createDirectoryAtPath:[[self cachePath] stringByDeletingLastPathComponent]
+                        attributes:nil
+                         recursive:true];
+
+    if (![data writeToFile:[self cachePath] atomically:YES]) {
         NSLog(@"SFThread: Failed to write %@", [self cachePath]);
     } else {
         // NSLog(@"Cache Wrote: %@", [self cachePath]);
     }
 }
 
-- (NSDate*) threadCacheModificationDate: (Ch2Thread*) t
+- (NSDate*)threadCacheModificationDate:(Ch2Thread*)t
 {
     NSFileManager* manager = [NSFileManager defaultManager];
     NSDictionary* attr;
     // Follows a symbolic link, as fileAttributesAtPath:traverseLink: did.
-    attr = [manager attributesOfItemAtPath: [[self cachePath] stringByResolvingSymlinksInPath]
-                                     error: NULL];
-    return [attr objectForKey: NSFileModificationDate];
+    attr = [manager attributesOfItemAtPath:[[self cachePath] stringByResolvingSymlinksInPath]
+                                     error:NULL];
+    return [attr objectForKey:NSFileModificationDate];
 }
 
-- (BOOL) postWithName: (NSString*) name
-				 mail: (NSString*) mail
-				 body: (NSString*) body
-	completionHandler: (Ch2ThreadPostHandler) handler
+- (BOOL)postWithName:(NSString*)name
+                 mail:(NSString*)mail
+                 body:(NSString*)body
+    completionHandler:(Ch2ThreadPostHandler)handler
 {
-	if (poster_ == nil) {
-		poster_ = [[Ch2Thread alloc] initWithNumber: number_ board: board_];
-		[poster_ setUserAgent: SEVENFOUR_USER_AGENT];
-	}
+    if (poster_ == nil) {
+        poster_ = [[Ch2Thread alloc] initWithNumber:number_ board:board_];
+        [poster_ setUserAgent:SEVENFOUR_USER_AGENT];
+    }
 
-	// poster_ refuses a second post while one is being sent.
-    return [poster_ postWithName: name
-                            mail: mail
-                            body: body
-               completionHandler: handler];
+    // poster_ refuses a second post while one is being sent.
+    return [poster_ postWithName:name
+                            mail:mail
+                            body:body
+               completionHandler:handler];
 }
 
-- (NSString*) alertMessage
+- (NSString*)alertMessage
 {
-	return [poster_ alertMessage];
+    return [poster_ alertMessage];
 }
 
 #pragma mark Override
 
-- (id) init
+- (id)init
 {
     self = [super init];
-    
+
     board_ = nil;
     number_ = 0;
 
@@ -561,35 +562,35 @@ static QuickLiteDatabase* database_ = nil;
     index_ = 0;
 
     thread_ = nil;
-    
+
     rate_ = 0;
     local_ = 0;
-	
-	visitedTime_ = nil;
-	cacheDeleted_ = NO;
-	poster_ = nil;
-	
-	offline_ = NO;
-    
+
+    visitedTime_ = nil;
+    cacheDeleted_ = NO;
+    poster_ = nil;
+
+    offline_ = NO;
+
     idCounts_ = [[NSMutableDictionary alloc] init];
-        
+
     return self;
 }
 
-- (void) dealloc
+- (void)dealloc
 {
     // [self saveMetadata];
-    
-	// Becaouse [thread_ delegate] == self!
-	[self retain];
-	[thread_ setDelegate: nil];
+
+    // Becaouse [thread_ delegate] == self!
+    [self retain];
+    [thread_ setDelegate:nil];
     [thread_ release];
     [poster_ release];
-	
+
     [board_ release];
     [subject_ release];
     [comment_ release];
-    
+
     [super dealloc];
 }
 

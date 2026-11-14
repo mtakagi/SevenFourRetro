@@ -6,5 +6,5 @@ BOOL SFIsTranslocatedPath(NSString* path)
 {
     // macOS has no public API for it; the place is recognized by its path,
     // as other apps do.
-    return [[path pathComponents] containsObject: @"AppTranslocation"];
+    return [[path pathComponents] containsObject:@"AppTranslocation"];
 }

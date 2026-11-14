@@ -10,10 +10,10 @@ extern NSString* SF_SUPPORT_DIRECTORY;
 // #define DEBUG_LOG(format, ...) NSLog((format), __VA_ARGS__)
 
 @interface SFAppController : NSObject <NSApplicationDelegate> {
-    id updaterController_;   // SPUStandardUpdaterController (Sparkle, #61)
+    id updaterController_; // SPUStandardUpdaterController (Sparkle, #61)
 }
 
-- (IBAction) reloadSkin: (id) sender;
-+ (NSURL*) URLFromCachePath: (NSString*) path;
+- (IBAction)reloadSkin:(id)sender;
++ (NSURL*)URLFromCachePath:(NSString*)path;
 
 @end

@@ -9,19 +9,19 @@ extern NSString* SFThreadDidFinishUpdatingNotification;
 @interface SFThread : NSObject {
     NSURL* board_;
     int number_;
-	BOOL offline_;
-    
+    BOOL offline_;
+
     NSString* subject_;
     int index_, count_;
-    
+
     int local_, rate_;
     NSString* comment_;
-	NSDate* visitedTime_;
-	BOOL isNew_;
-	BOOL cacheDeleted_;
-    
+    NSDate* visitedTime_;
+    BOOL isNew_;
+    BOOL cacheDeleted_;
+
     NSMutableDictionary* idCounts_;
-	
+
     Ch2Thread* thread_;
     // Sends the posts. Separate from thread_, which is replaced when the log
     // is deleted, so a post being sent, its message and its confirmation
@@ -29,58 +29,58 @@ extern NSString* SFThreadDidFinishUpdatingNotification;
     Ch2Thread* poster_;
 }
 
-- (id) initWithNumber: (int) number
-				board: (NSURL*) board;
+- (id)initWithNumber:(int)number
+               board:(NSURL*)board;
 
-- (int) number;
+- (int)number;
 
 // From subject.txt
-- (NSString*) subject;
-- (int) index;
-- (int) count;
+- (NSString*)subject;
+- (int)index;
+- (int)count;
 
-- (void) setSubject: (NSString*) subject;
-- (void) setIndex:   (int) index;
-- (void) setCount:   (int) count;
+- (void)setSubject:(NSString*)subject;
+- (void)setIndex:(int)index;
+- (void)setCount:(int)count;
 
-- (NSDate*) creationDate;
+- (NSDate*)creationDate;
 
 // Meta data
-- (void) loadMetadata;
-- (void) saveMetadata;
+- (void)loadMetadata;
+- (void)saveMetadata;
 
-- (BOOL) isNew;
-- (int) local;
-- (int) delta;
-- (int) rate;
-- (void) setRate: (int) rate;
-- (int) newCount;
-- (float) pace;
+- (BOOL)isNew;
+- (int)local;
+- (int)delta;
+- (int)rate;
+- (void)setRate:(int)rate;
+- (int)newCount;
+- (float)pace;
 
 // URL
-- (NSURL*) URLOfBoard;
-- (NSURL*) URLOfHTML;
-- (NSURL*) URLOfDat;
+- (NSURL*)URLOfBoard;
+- (NSURL*)URLOfHTML;
+- (NSURL*)URLOfDat;
 
 //
-- (void) update;
-- (void) removeCache;
-- (NSDictionary*) messageAtIndex: (int) index;
-- (int) countOfID: (NSString*) key;
+- (void)update;
+- (void)removeCache;
+- (NSDictionary*)messageAtIndex:(int)index;
+- (int)countOfID:(NSString*)key;
 
 //
 // See -[Ch2Thread postWithName:mail:body:completionHandler:].
-- (BOOL) postWithName: (NSString*) name
-				 mail: (NSString*) mail
-				 body: (NSString*) body
-	completionHandler: (Ch2ThreadPostHandler) handler;
-- (NSString*) alertMessage;
+- (BOOL)postWithName:(NSString*)name
+                 mail:(NSString*)mail
+                 body:(NSString*)body
+    completionHandler:(Ch2ThreadPostHandler)handler;
+- (NSString*)alertMessage;
 
-- (BOOL) isEqualToThread: (SFThread*) th;
+- (BOOL)isEqualToThread:(SFThread*)th;
 
-- (void) setOffline: (BOOL) flag;
-- (BOOL) offline;
+- (void)setOffline:(BOOL)flag;
+- (BOOL)offline;
 
-+ (QuickLiteDatabase*) sharedDatabase;
++ (QuickLiteDatabase*)sharedDatabase;
 
 @end

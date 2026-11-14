@@ -23,7 +23,7 @@ static BOOL isSingleByte(unsigned char c)
 static NSString* decode(const unsigned char* bytes, NSUInteger length)
 {
     return [(NSString*) CFStringCreateWithBytes(NULL, bytes, length, kCFStringEncodingDOSJapanese, false)
-               autorelease];
+        autorelease];
 }
 
 // Appends bytes that are well-formed character by character; a code with
@@ -35,21 +35,21 @@ static void appendWellFormed(NSMutableString* result, const unsigned char* bytes
     }
     NSString* s = decode(bytes, length);
     if (s) {
-        [result appendString: s];
+        [result appendString:s];
         return;
     }
     NSUInteger i = 0;
     while (i < length) {
         NSUInteger n = isLeadByte(bytes[i]) ? 2 : 1;
         s = decode(bytes + i, n);
-        [result appendString: s ? s : @"\uFFFD"];
+        [result appendString:s ? s : @"\uFFFD"];
         i += n;
     }
 }
 
 NSString* Ch2StringFromShiftJIS(NSData* data)
 {
-    if (! data) {
+    if (!data) {
         return nil;
     }
 
@@ -62,8 +62,8 @@ NSString* Ch2StringFromShiftJIS(NSData* data)
         return whole;
     }
 
-    NSMutableString* result = [NSMutableString stringWithCapacity: length];
-    NSUInteger start = 0;   // the well-formed run not appended yet
+    NSMutableString* result = [NSMutableString stringWithCapacity:length];
+    NSUInteger start = 0; // the well-formed run not appended yet
     NSUInteger i = 0;
     while (i < length) {
         unsigned char c = bytes[i];
@@ -78,7 +78,7 @@ NSString* Ch2StringFromShiftJIS(NSData* data)
         } else {
             // Not a character here; go on with the next byte.
             appendWellFormed(result, bytes + start, i - start);
-            [result appendString: @"\uFFFD"];
+            [result appendString:@"\uFFFD"];
             i += 1;
             start = i;
         }

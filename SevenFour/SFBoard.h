@@ -5,16 +5,16 @@
 extern NSString* SFBoardDidFinishUpdatingNotification;
 
 @interface SFBoard : NSObject {
-	NSString* title_;
+    NSString* title_;
 }
 
-- (NSString*) title;
-- (void) setTitle: (NSString*) title;
+- (NSString*)title;
+- (void)setTitle:(NSString*)title;
 
-- (NSURL*) URL;
+- (NSURL*)URL;
 
-- (NSArray*) threads;
+- (NSArray*)threads;
 
-- (void) update;
+- (void)update;
 
 @end

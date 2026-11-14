@@ -5,13 +5,13 @@
 @class Ch2Board;
 
 @interface SFNormalBoard : SFBoard {
-	NSURL* url_;
-	Ch2Board* board_;
-	NSMutableArray* threads_;
+    NSURL* url_;
+    Ch2Board* board_;
+    NSMutableArray* threads_;
 }
 
 
-- (id) initWithURL: (NSURL*) url
-			 title: (NSString*) title;
+- (id)initWithURL:(NSURL*)url
+            title:(NSString*)title;
 
 @end

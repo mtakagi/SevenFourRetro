@@ -9,79 +9,79 @@
 
 @implementation SFMDBoard
 
-- (void) setQuery: (NSString*) query
+- (void)setQuery:(NSString*)query
 {
-	[query_ release];
-	query_ = [query retain];
-	
-	[threads_ removeAllObjects];
+    [query_ release];
+    query_ = [query retain];
+
+    [threads_ removeAllObjects];
 }
 
-- (NSArray*) threads
+- (NSArray*)threads
 {
-	return threads_;
+    return threads_;
 }
 
-- (NSString*) title
+- (NSString*)title
 {
-	return @"Spotlight";
+    return @"Spotlight";
 }
 
 #pragma mark Override
-- (void) update
-{    
+- (void)update
+{
     NSPipe* pipe = [[NSPipe alloc] init];
-    
+
     NSTask* task = [[NSTask alloc] init];
-    [task setStandardOutput: pipe];
-    [task setLaunchPath: @"/usr/bin/mdfind"];
-    
-    [task setArguments: [NSArray arrayWithObject: query_]];
+    [task setStandardOutput:pipe];
+    [task setLaunchPath:@"/usr/bin/mdfind"];
+
+    [task setArguments:[NSArray arrayWithObject:query_]];
     [task launch];
     [task waitUntilExit];
-    
+
     NSData* data = [[pipe fileHandleForReading] availableData];
-    NSString* str = [[NSString alloc] initWithData: data encoding: NSUTF8StringEncoding];
-    NSArray* lines = [str componentsSeparatedByString: @"\n"];
-    
-    [self willChangeValueForKey: @"threads"];
+    NSString* str = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    NSArray* lines = [str componentsSeparatedByString:@"\n"];
+
+    [self willChangeValueForKey:@"threads"];
     [threads_ removeAllObjects];
 
     SFThreadFactory* factory = [SFThreadFactory sharedFactory];
     int i;
     for (i = 0; i < [lines count]; i++) {
-        NSString* path = [lines objectAtIndex: i];
+        NSString* path = [lines objectAtIndex:i];
 
-        NSURL* url = [SFAppController URLFromCachePath: path];
+        NSURL* url = [SFAppController URLFromCachePath:path];
         if (url) {
             NSLog(@"url = %@", url);
-            
-            SFThread* th = [factory threadWithURL: url];
-			[th loadMetadata];
 
-            [threads_ addObject: th];
+            SFThread* th = [factory threadWithURL:url];
+            [th loadMetadata];
+
+            [threads_ addObject:th];
         }
-    }    
-    
-    [self didChangeValueForKey: @"threads"];
+    }
+
+    [self didChangeValueForKey:@"threads"];
 }
 
-- (id) init
+- (id)init
 {
     self = [super init];
-    
-	query_ = nil;
-	threads_ = [[NSMutableArray alloc] init];
-    
+
+    query_ = nil;
+    threads_ = [[NSMutableArray alloc] init];
+
     return self;
 }
 
-- (void) dealloc
+- (void)dealloc
 {
-	[query_ release];
-	[threads_ release];
-	
-	[super dealloc];
+    [query_ release];
+    [threads_ release];
+
+    [super dealloc];
 }
 
 @end

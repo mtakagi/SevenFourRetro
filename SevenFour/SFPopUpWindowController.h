@@ -13,8 +13,8 @@
 
 // A pop-up window at frame (screen coordinates; the height is adjusted to
 // the page once it has loaded).
-- (id) initWithFrame: (NSRect) frame;
+- (id)initWithFrame:(NSRect)frame;
 
-- (SFPageView*) pageView;
+- (SFPageView*)pageView;
 
 @end

@@ -6,5 +6,5 @@
     int min_;
 }
 
-- (void) setMinValue: (int) min;
+- (void)setMinValue:(int)min;
 @end

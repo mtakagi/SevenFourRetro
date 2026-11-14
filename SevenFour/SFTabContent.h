@@ -7,9 +7,9 @@
 // #28) implements this (#27).
 @protocol SFTabContent <NSObject>
 // The tab's label; nil or empty shows "Untitled".
-- (NSString*) tabTitle;
+- (NSString*)tabTitle;
 // YES while the page or the thread is loading (the tab shows a spinner).
-- (BOOL) isTabLoading;
+- (BOOL)isTabLoading;
 @end
 
 // Posted by a tab content view (the object) when its title or loading

@@ -4,10 +4,10 @@
 #import "SFBoard.h"
 
 @interface SFMDBoard : SFBoard {
-	NSMutableArray* threads_;
+    NSMutableArray* threads_;
     NSString* query_;
 }
 
-- (void) setQuery: (NSString*) query;
+- (void)setQuery:(NSString*)query;
 
 @end
